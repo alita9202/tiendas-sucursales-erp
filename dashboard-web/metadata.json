@@ -1,0 +1,6 @@
+{
+  "name": "Alexandria ERP",
+  "description": "Premium multi-view ERP suite featuring a POS Checkout client, an interactive Inventory Manager, and an Executive Financial Dashboard with editorial styling.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
