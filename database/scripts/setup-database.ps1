@@ -30,6 +30,13 @@ Get-Content -Raw database\init\05-create-transfer-functions.sql | docker compose
 
 Write-Host ""
 Write-Host "========================================================="
+Write-Host "LIMPIANDO DATOS DEMO ANTERIORES"
+Write-Host "========================================================="
+
+Get-Content -Raw database\seed\00-reset-demo-data.sql | docker compose exec -T postgres psql -U admin -d erp_main_db
+
+Write-Host ""
+Write-Host "========================================================="
 Write-Host "CARGANDO DATOS DEMO"
 Write-Host "========================================================="
 
