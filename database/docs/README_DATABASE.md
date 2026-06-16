@@ -1,5 +1,11 @@
 # Base de Datos - Tiendas Sucursales ERP
 
+> [!WARNING]
+> **MIGRACIÓN A MICROSERVICIOS**
+> La estructura descrita en este documento basada en esquemas (`erp_main_db`) es **LEGACY**. 
+> Se ha migrado a una arquitectura estricta de **Base de Datos por Microservicio** en la carpeta `database/service-databases`. 
+> Por favor, revisa `MICROSERVICES_DB_ALIGNMENT.md` para más información sobre la arquitectura actual.
+
 Este directorio contiene la estructura, datos iniciales, vistas, funciones y verificaciones técnicas de la base de datos del sistema multicompañía y multisucursal.
 
 La base está preparada para ser consumida por los microservicios del proyecto, principalmente por los módulos de empresas, catálogos, inventarios, ventas, compras y finanzas.

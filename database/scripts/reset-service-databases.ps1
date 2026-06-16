@@ -1,11 +1,24 @@
-# Setup Microservices Databases
+# Reset Microservices Databases
 # Uses PostgreSQL inside Docker container. No local psql required.
+# Drops and recreates all independent service databases.
 
 $ErrorActionPreference = "Stop"
 
 $PgUser = "admin"
-$PgPassword = "erp_secure_password_2024"
 $DbScriptsPath = Join-Path (Get-Location).Path "database\service-databases"
+
+function Invoke-PsqlSql {
+    param(
+        [string]$Database,
+        [string]$Sql
+    )
+
+    $Sql | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $PgUser -d $Database
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "psql command failed on database $Database."
+    }
+}
 
 function Invoke-PsqlFile {
     param(
@@ -20,6 +33,10 @@ function Invoke-PsqlFile {
 
     Write-Host "Executing $FilePath on $Database..."
     Get-Content -Raw $FilePath | docker compose exec -T postgres psql -v ON_ERROR_STOP=1 -U $PgUser -d $Database
+
+    if ($LASTEXITCODE -ne 0) {
+        throw "psql file execution failed: $FilePath"
+    }
 }
 
 Write-Host "Starting PostgreSQL and RabbitMQ with Docker Compose..."
@@ -27,10 +44,6 @@ docker compose up -d postgres rabbitmq
 
 Write-Host "Waiting for PostgreSQL to be ready..."
 Start-Sleep -Seconds 8
-
-Write-Host "Creating independent service databases..."
-$CreateDbScript = Join-Path $DbScriptsPath "00-create-databases.sql"
-Invoke-PsqlFile -Database "postgres" -FilePath $CreateDbScript
 
 $Databases = @(
     "company",
@@ -42,12 +55,24 @@ $Databases = @(
     "notification"
 )
 
+Write-Host ""
+Write-Host "Dropping and recreating independent service databases..." -ForegroundColor Cyan
+
+foreach ($db in $Databases) {
+    $dbName = "${db}_db"
+
+    Write-Host "Resetting $dbName..." -ForegroundColor Yellow
+
+    Invoke-PsqlSql -Database "postgres" -Sql "DROP DATABASE IF EXISTS $dbName WITH (FORCE);"
+    Invoke-PsqlSql -Database "postgres" -Sql "CREATE DATABASE $dbName;"
+}
+
 foreach ($db in $Databases) {
     $dbName = "${db}_db"
     $dbDir = Join-Path $DbScriptsPath "${db}-db"
 
     Write-Host ""
-    Write-Host "Initializing $dbName..." -ForegroundColor Cyan
+    Write-Host "Reinstalling $dbName..." -ForegroundColor Cyan
 
     $SchemaFile = Join-Path $dbDir "01-schema.sql"
     Invoke-PsqlFile -Database $dbName -FilePath $SchemaFile
@@ -65,11 +90,5 @@ foreach ($db in $Databases) {
 }
 
 Write-Host ""
-Write-Host "Setup completed successfully." -ForegroundColor Green
-Write-Host ""
-Write-Host "Connection strings:"
-foreach ($db in $Databases) {
-    $upperName = $db.ToUpper()
-    Write-Host "${upperName}_DATABASE_URL=postgresql://${PgUser}:${PgPassword}@localhost:5432/${db}_db"
-}
-Write-Host "RABBITMQ_URL=amqp://guest:guest@localhost:5672/"
+Write-Host "Reset completed successfully." -ForegroundColor Green
+Write-Host "Run .\database\scripts\check-service-databases.ps1 to validate the installation."
