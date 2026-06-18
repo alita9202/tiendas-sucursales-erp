@@ -1,13 +1,21 @@
 import { useState } from 'react';
 import { INITIAL_PRODUCTS, INITIAL_TRANSACTIONS, INITIAL_LOGS } from './data';
 import { Product, Transaction, ArchivalLog } from './types';
-import SideNavBar from './components/SideNavBar';
+import SideNavBar, { TabId } from './components/SideNavBar';
 import TopNavBar from './components/TopNavBar';
 import POSCheckout from './components/POSCheckout';
 import InventoryManager from './components/InventoryManager';
 import ExecutiveDashboard from './components/ExecutiveDashboard';
 import SettingsView from './components/SettingsView';
 import ArchivalLogs from './components/ArchivalLogs';
+
+import CompaniesBranchesManager from './components/CompaniesBranchesManager';
+import ProductCatalogManager from './components/ProductCatalogManager';
+import InventoryLoadManager from './components/InventoryLoadManager';
+import TransferManager from './components/TransferManager';
+import ReportsManager from './components/ReportsManager';
+import NotificationsManager from './components/NotificationsManager';
+import DefenseChecklist from './components/DefenseChecklist';
 
 export default function App() {
   // Master state
@@ -16,7 +24,7 @@ export default function App() {
   const [logs, setLogs] = useState<ArchivalLog[]>(INITIAL_LOGS);
   
   // Navigation & Search Query
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'inventory' | 'pos' | 'settings' | 'history'>('pos');
+  const [activeTab, setActiveTab] = useState<TabId>('dashboard');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Settings configs
@@ -58,15 +66,17 @@ export default function App() {
 
         {/* Workspace body router */}
         <main className="flex-1 overflow-hidden flex flex-col">
-          {activeTab === 'pos' && (
-            <POSCheckout
-              products={products}
-              updateProductStock={updateProductStock}
-              addTransaction={addTransaction}
-              addLog={addLog}
-              searchQuery={searchQuery}
+          
+          {activeTab === 'dashboard' && (
+            <ExecutiveDashboard
+              transactions={transactions}
+              setActiveTab={setActiveTab}
             />
           )}
+
+          {activeTab === 'companies' && <CompaniesBranchesManager />}
+          {activeTab === 'products' && <ProductCatalogManager />}
+          {activeTab === 'inventory-load' && <InventoryLoadManager />}
 
           {activeTab === 'inventory' && (
             <InventoryManager
@@ -77,9 +87,23 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'dashboard' && (
-            <ExecutiveDashboard
-              transactions={transactions}
+          {activeTab === 'pos' && (
+            <POSCheckout
+              products={products}
+              updateProductStock={updateProductStock}
+              addTransaction={addTransaction}
+              addLog={addLog}
+              searchQuery={searchQuery}
+            />
+          )}
+
+          {activeTab === 'transfers' && <TransferManager />}
+          {activeTab === 'reports' && <ReportsManager />}
+          {activeTab === 'notifications' && <NotificationsManager />}
+
+          {activeTab === 'history' && (
+            <ArchivalLogs
+              logs={logs}
             />
           )}
 
@@ -92,11 +116,8 @@ export default function App() {
             />
           )}
 
-          {activeTab === 'history' && (
-            <ArchivalLogs
-              logs={logs}
-            />
-          )}
+          {activeTab === 'checklist' && <DefenseChecklist />}
+          
         </main>
       </div>
     </div>

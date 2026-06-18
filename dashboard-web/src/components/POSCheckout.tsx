@@ -1,569 +1,215 @@
-import { useState, useMemo, FormEvent } from 'react';
-import { Product, CartItem, Transaction, ArchivalLog } from '../types';
-import { Plus, Minus, UserPlus, ShoppingCart, Check, CreditCard, QrCode, ClipboardList, Wallet, Sparkles } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
+import { useState, FormEvent } from 'react';
+import { CreditCard, ShoppingCart, UserPlus, Check, Award } from 'lucide-react';
 
-interface POSCheckoutProps {
-  products: Product[];
-  updateProductStock: (id: string, newStock: number) => void;
-  addTransaction: (tx: Transaction) => void;
-  addLog: (log: ArchivalLog) => void;
-  searchQuery: string;
-}
-
-export default function POSCheckout({
-  products,
-  updateProductStock,
-  addTransaction,
-  addLog,
-  searchQuery,
-}: POSCheckoutProps) {
-  const [selectedCategory, setSelectedCategory] = useState<string>('Todos');
-  const [cart, setCart] = useState<CartItem[]>([]);
-  const [clientName, setClientName] = useState<string>('Consumidor Final');
-  const [clientNit, setClientNit] = useState<string>('99001');
-  const [paymentMethod, setPaymentMethod] = useState<'Efectivo' | 'Tarjeta' | 'QR' | 'Crédito'>('Efectivo');
+export default function POSCheckout() {
+  const [cart, setCart] = useState<{ id: string; name: string; price: number; quantity: number }[]>([]);
+  const [clientName, setClientName] = useState('Juanito Perez');
+  const [clientNit, setClientNit] = useState('1234567');
+  const [branch, setBranch] = useState('Sucursal Prado');
+  const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   
-  // Modals state
-  const [showNewClientModal, setShowNewClientModal] = useState(false);
-  const [showReceiptModal, setShowReceiptModal] = useState(false);
-  const [justProcessedTx, setJustProcessedTx] = useState<Transaction | null>(null);
+  const [showReceipt, setShowReceipt] = useState(false);
 
-  // New Client Form
-  const [newClientName, setNewClientName] = useState('');
-  const [newClientNit, setNewClientNit] = useState('');
+  // Mock Products for demo
+  const products = [
+    { id: 'PROD-002', name: 'Leche Pil 980cc', price: 18.50, stock: 100 },
+    { id: 'PROD-003', name: 'Mayonesa Cris', price: 2.00, stock: 120 }
+  ];
 
-  // Categories list
-  const categories = ['Todos', 'Electrónica', 'Accesorios', 'Hogar'];
-
-  // Filtered Products
-  const filteredProducts = useMemo(() => {
-    return products.filter((prod) => {
-      const matchCategory = selectedCategory === 'Todos' || prod.category === selectedCategory;
-      const matchSearch = prod.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                          prod.description.toLowerCase().includes(searchQuery.toLowerCase());
-      return matchCategory && matchSearch;
-    });
-  }, [products, selectedCategory, searchQuery]);
-
-  // Cart operations
-  const addToCart = (product: Product) => {
-    if (product.stock <= 0) return;
-    
-    setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === product.id);
-      if (existing) {
-        // limit to available stock
-        if (existing.quantity >= product.stock) return prev;
-        return prev.map((item) =>
-          item.product.id === product.id ? { ...item, quantity: item.quantity + 1 } : item
-        );
+  const addToCart = (prod: any) => {
+    setCart(prev => {
+      const exists = prev.find(p => p.id === prod.id);
+      if (exists) {
+        return prev.map(p => p.id === prod.id ? { ...p, quantity: p.quantity + 1 } : p);
       }
-      return [...prev, { product, quantity: 1 }];
+      return [...prev, { ...prod, quantity: 1 }];
     });
   };
 
-  const removeFromCart = (productId: string) => {
-    setCart((prev) => {
-      const existing = prev.find((item) => item.product.id === productId);
-      if (!existing) return prev;
-      if (existing.quantity === 1) {
-        return prev.filter((item) => item.product.id !== productId);
-      }
-      return prev.map((item) =>
-        item.product.id === productId ? { ...item, quantity: item.quantity - 1 } : item
-      );
-    });
+  const addDemoUnits = () => {
+    const prod = products[0];
+    setCart([{ id: prod.id, name: prod.name, price: prod.price, quantity: 2 }]);
   };
 
-  // Cart Subtotal & Total calculations
-  const subtotal = useMemo(() => {
-    return cart.reduce((sum, item) => sum + item.product.price * item.quantity, 0);
-  }, [cart]);
+  const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
+  const total = subtotal; // Simplicado sin IVA separado para la demo
 
-  const tax = useMemo(() => {
-    return subtotal * 0.13; // 13% IVA
-  }, [subtotal]);
-
-  const total = useMemo(() => {
-    return subtotal + tax;
-  }, [subtotal, tax]);
-
-  // Save new client
-  const handleCreateClient = (e: FormEvent) => {
-    e.preventDefault();
-    if (newClientName.trim()) {
-      setClientName(newClientName);
-      setClientNit(newClientNit || '99001');
-      setShowNewClientModal(false);
-      setNewClientName('');
-      setNewClientNit('');
-    }
-  };
-
-  // Process transaction
-  const handleCheckout = () => {
+  const handleProcessSale = () => {
     if (cart.length === 0) return;
+    setShowReceipt(true);
+  };
 
-    // Check stock for all items
-    for (const item of cart) {
-      if (item.quantity > item.product.stock) {
-        alert(`Stock insuficiente para ${item.product.name}. Disponible: ${item.product.stock}`);
-        return;
-      }
-    }
-
-    // Deduct stock
-    cart.forEach((item) => {
-      updateProductStock(item.product.id, item.product.stock - item.quantity);
-    });
-
-    const txId = `TX-${Math.floor(1000 + Math.random() * 9000)}`;
-    const newTx: Transaction = {
-      id: txId,
-      client: clientName,
-      company: clientName === 'Consumidor Final' ? 'Individual' : 'Cliente Corporativo',
-      branch: 'Sucursal Central',
-      amount: total,
-      method: paymentMethod,
-      status: 'Completado',
-      date: new Date().toISOString(),
-    };
-
-    // Add logging and transactions
-    addTransaction(newTx);
-    
-    // Create detailed archival log
-    const productsString = cart.map(item => `${item.quantity}x ${item.product.name}`).join(', ');
-    const newLog: ArchivalLog = {
-      id: `LOG-${Math.floor(100 + Math.random() * 900)}`,
-      type: 'venta',
-      message: `Venta Procesada: ${txId}`,
-      details: `${clientName} (NIT: ${clientNit}) - [${productsString}]`,
-      amount: total,
-      date: new Date().toISOString(),
-    };
-    addLog(newLog);
-
-    // Save for Receipt modal
-    setJustProcessedTx(newTx);
-    setShowReceiptModal(true);
-
-    // Reset shopping cart page variables but keep config
+  const closeReceipt = () => {
+    setShowReceipt(false);
     setCart([]);
   };
 
   return (
-    <div className="flex-1 flex flex-col lg:flex-row bg-surface-container-lowest overflow-hidden">
+    <div className="flex-1 flex flex-col bg-surface dark:bg-surface-dark overflow-hidden">
       
-      {/* Left: Product Grid Section */}
-      <section className="flex-1 flex flex-col p-6 overflow-hidden">
-        
-        {/* Category filtering chips */}
-        <div className="flex items-center justify-between mb-6 shrink-0 flex-wrap gap-4">
-          <div className="flex gap-2 flex-wrap">
-            {categories.map((cat) => (
-              <button
-                key={cat}
-                onClick={() => setSelectedCategory(cat)}
-                className={`px-5 py-2 rounded-full font-label font-semibold text-xs tracking-wide transition-all z-10 cursor-pointer ${
-                  selectedCategory === cat
-                    ? 'bg-primary text-on-primary shadow-md shadow-primary/20 scale-105'
-                    : 'bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest'
-                }`}
+      {/* TODO Sales Service: conectar POST /sales */}
+      <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 shrink-0 flex gap-3 items-start m-6 mb-0 rounded-r-lg">
+        <CreditCard className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
+        <p className="text-yellow-800 dark:text-yellow-300 font-medium text-sm">
+          Responsable: Sales Service. Pendiente: conectar POST /sales, GET /sales y GET /sales/:id. Evento SaleCompleted local.
+        </p>
+      </div>
+
+      <div className="flex-1 flex flex-col lg:flex-row p-6 gap-6 overflow-hidden">
+        {/* Left: Product Grid */}
+        <section className="flex-1 flex flex-col bg-surface-container rounded-xl border border-outline-variant/20 p-6 overflow-hidden">
+          <h2 className="text-xl font-bold text-on-surface mb-4">Productos Disponibles</h2>
+          
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto pr-2 no-scrollbar">
+            {products.map(p => (
+              <div 
+                key={p.id} 
+                onClick={() => addToCart(p)}
+                className="bg-surface border border-outline-variant/20 p-4 rounded-xl cursor-pointer hover:border-primary/50 transition-colors flex flex-col justify-between"
               >
-                {cat}
-              </button>
+                <div>
+                  <h3 className="font-bold text-on-surface">{p.name}</h3>
+                  <p className="text-xs text-secondary font-mono mt-1">{p.id}</p>
+                </div>
+                <div className="mt-4 flex justify-between items-center">
+                  <span className="font-bold text-primary">Bs {p.price.toFixed(2)}</span>
+                  <span className="text-xs font-medium bg-surface-container-high px-2 py-0.5 rounded text-secondary">Stock: {p.stock}</span>
+                </div>
+              </div>
             ))}
           </div>
-          
-          <div className="flex items-center gap-1.5 text-on-surface-variant/70 text-xs font-label font-semibold uppercase tracking-wider">
-            <ClipboardList className="w-4 h-4" />
-            <span>Ordenar por Popularidad</span>
-          </div>
-        </div>
 
-        {/* Dynamic Products Grid with Animating Entries */}
-        <div className="flex-1 overflow-y-auto pr-1 no-scrollbar pb-6">
-          {filteredProducts.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-12">
-              <ShoppingCart className="w-12 h-12 text-outline-variant/40 mb-3" />
-              <p className="font-headline text-lg font-bold text-on-surface">No se encontraron productos</p>
-              <p className="text-sm font-body text-on-surface-variant opacity-70 mt-1 max-w-xs">
-                Pruebe cambiando de categoría o ajustando el criterio de búsqueda.
-              </p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-              {filteredProducts.map((prod) => {
-                const isLowStock = prod.stock <= 4;
-                const outOfStock = prod.stock === 0;
-
-                return (
-                  <motion.div
-                    key={prod.id}
-                    layoutId={`prod-card-${prod.id}`}
-                    className={`group bg-surface-container-low rounded-xl overflow-hidden cursor-pointer transition-all duration-300 hover:bg-surface-container-high active:scale-[0.98] flex flex-col relative border border-outline-variant/10`}
-                    onClick={() => !outOfStock && addToCart(prod)}
-                  >
-                    {/* Image Area */}
-                    <div className="aspect-square relative overflow-hidden bg-white/50 flex items-center justify-center">
-                      <img
-                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-                        src={prod.image}
-                        alt={prod.name}
-                        referrerPolicy="no-referrer"
-                      />
-                      
-                      {/* Stock badge */}
-                      <span
-                        className={`absolute top-2 right-2 px-2.5 py-1 rounded text-[9px] font-bold uppercase tracking-widest font-label shadow-sm ${
-                          outOfStock
-                            ? 'bg-neutral-500 text-white'
-                            : isLowStock
-                            ? 'bg-error-container text-on-error-container font-extrabold animate-pulse'
-                            : 'bg-tertiary-container text-on-tertiary-container'
-                        }`}
-                      >
-                        {outOfStock ? 'Sin Stock' : `Stock: ${prod.stock}`}
-                      </span>
-
-                      {/* Overly subtle category hover icon */}
-                      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/20 to-transparent p-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <span className="text-[10px] text-white font-label font-bold uppercase tracking-wider bg-black/40 backdrop-blur-md px-2 py-0.5 rounded">
-                          {prod.category}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Descriptive Details */}
-                    <div className="p-4 flex-1 flex flex-col justify-between">
-                      <div>
-                        <h3 className="font-headline font-bold text-on-surface text-sm group-hover:text-primary transition-colors line-clamp-1">
-                          {prod.name}
-                        </h3>
-                        <p className="text-xs font-body text-on-surface-variant mt-1.5 line-clamp-2 leading-relaxed opacity-85">
-                          {prod.description}
-                        </p>
-                      </div>
-
-                      <div className="mt-4 flex justify-between items-center pt-2 border-t border-outline-variant/10">
-                        <span className="text-base font-headline font-semibold text-primary dark:text-primary-fixed-dim">
-                          ${prod.price.toFixed(2)}
-                        </span>
-                        
-                        <div className="bg-primary-container/10 group-hover:bg-primary group-hover:text-on-primary p-1.5 rounded-lg transition-all shadow-sm">
-                          <Plus className="w-3.5 h-3.5 text-primary group-hover:text-white" />
-                        </div>
-                      </div>
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Right: Cart Panel Section */}
-      <section className="w-full lg:w-[420px] bg-surface-container-low flex flex-col border-t lg:border-t-0 lg:border-l border-outline-variant/15 shadow-[-10px_0_30px_-15px_rgba(0,0,0,0.04)] justify-between">
-        
-        {/* Client Selection header */}
-        <div className="p-6 bg-surface-container-high/40 border-b border-outline-variant/10">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-headline font-bold text-on-surface text-base">Carrito de Venta</h2>
-            <button
-              onClick={() => setShowNewClientModal(true)}
-              className="text-primary font-label text-xs font-bold uppercase tracking-wider flex items-center gap-1 hover:underline cursor-pointer"
+          <div className="mt-6 pt-4 border-t border-outline-variant/10">
+            <button 
+              onClick={addDemoUnits}
+              className="text-sm font-bold text-primary hover:underline"
             >
-              <UserPlus className="w-3.5 h-3.5" /> Nuevo Cliente
+              Cargar Demo (2x Leche Pil)
             </button>
           </div>
+        </section>
 
-          <div className="space-y-2">
-            <div className="grid grid-cols-2 gap-2">
-              <div className="bg-surface-container-lowest p-2 rounded-lg border border-outline-variant/20 shadow-sm">
-                <span className="text-[10px] text-on-surface-variant font-label block uppercase">Cliente</span>
-                <input
-                  type="text"
-                  value={clientName}
-                  onChange={(e) => setClientName(e.target.value)}
-                  className="font-body text-xs font-semibold text-on-surface bg-transparent border-none outline-none p-0 mt-0.5 w-full focus:ring-0"
-                  placeholder="Nombre Cliente"
-                />
+        {/* Right: Cart */}
+        <section className="w-full lg:w-96 flex flex-col bg-surface-container rounded-xl border border-outline-variant/20 overflow-hidden shrink-0">
+          <div className="p-4 bg-surface-container-high/30 border-b border-outline-variant/10">
+            <h2 className="font-bold text-on-surface text-lg flex items-center justify-between">
+              Venta
+              <UserPlus className="w-5 h-5 text-primary" />
+            </h2>
+            <div className="mt-4 space-y-3">
+              <div>
+                <label className="text-xs font-bold text-secondary uppercase block mb-1">Sucursal</label>
+                <select 
+                  value={branch}
+                  onChange={(e) => setBranch(e.target.value)}
+                  className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm"
+                >
+                  <option>Sucursal Prado</option>
+                  <option>Sucursal El Alto</option>
+                </select>
               </div>
-              <div className="bg-surface-container-lowest p-2 rounded-lg border border-outline-variant/20 shadow-sm">
-                <span className="text-[10px] text-on-surface-variant font-label block uppercase">CI o NIT</span>
-                <input
-                  type="text"
-                  value={clientNit}
-                  onChange={(e) => setClientNit(e.target.value)}
-                  className="font-body text-xs font-semibold text-on-surface bg-transparent border-none outline-none p-0 mt-0.5 w-full focus:ring-0"
-                  placeholder="NIT/CI"
-                />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="text-xs font-bold text-secondary uppercase block mb-1">Cliente</label>
+                  <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
+                </div>
+                <div>
+                  <label className="text-xs font-bold text-secondary uppercase block mb-1">NIT/CI</label>
+                  <input type="text" value={clientNit} onChange={e => setClientNit(e.target.value)} className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Cart Item Row List */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 no-scrollbar space-y-4">
-          {cart.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 opacity-60">
-              <ShoppingCart className="w-10 h-10 text-on-surface-variant/30 mb-2" />
-              <p className="text-xs font-body font-semibold text-on-surface-variant">El carrito está vacío</p>
-              <p className="text-[10px] font-label text-on-surface-variant opacity-80 mt-1">
-                Presione un producto de la izquierda para agregarlo.
-              </p>
-            </div>
-          ) : (
-            <AnimatePresence>
-              {cart.map((item) => (
-                <motion.div
-                  key={item.product.id}
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  exit={{ opacity: 0, x: -50 }}
-                  className="flex items-center gap-3 bg-surface-container-lowest p-3 rounded-xl shadow-sm border border-outline-variant/10 relative"
-                >
-                  <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-neutral-100 flex items-center justify-center">
-                    <img
-                      className="w-full h-full object-cover"
-                      src={item.product.thumbnail}
-                      alt={item.product.name}
-                      referrerPolicy="no-referrer"
-                    />
-                  </div>
-                  
-                  <div className="flex-1 min-w-0">
-                    <h4 className="text-xs font-headline font-bold text-on-surface truncate">
-                      {item.product.name}
-                    </h4>
-                    <p className="text-[10px] font-label text-on-surface-variant opacity-80 mt-0.5">
-                      ${item.product.price.toFixed(2)} c/u
-                    </p>
-                  </div>
-
-                  <div className="flex flex-col items-end gap-1">
-                    <div className="flex items-center gap-1.5 bg-surface-container rounded-lg px-2 py-1">
-                      <button
-                        onClick={() => removeFromCart(item.product.id)}
-                        className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                      >
-                        <Minus className="w-3 h-3" />
-                      </button>
-                      <span className="font-body font-semibold text-xs w-4 text-center">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => addToCart(item.product)}
-                        className="text-on-surface-variant hover:text-primary transition-colors cursor-pointer"
-                        disabled={item.quantity >= item.product.stock}
-                      >
-                        <Plus className="w-3 h-3" />
-                      </button>
+          <div className="flex-1 p-4 overflow-y-auto">
+            {cart.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-secondary opacity-50">
+                <ShoppingCart className="w-10 h-10 mb-2" />
+                <p className="text-sm">Carrito vacío</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {cart.map((item, idx) => (
+                  <div key={idx} className="flex justify-between items-center bg-surface p-2 rounded border border-outline-variant/10">
+                    <div>
+                      <p className="font-bold text-sm text-on-surface">{item.name}</p>
+                      <p className="text-xs text-secondary">{item.quantity} x Bs {item.price.toFixed(2)}</p>
                     </div>
-                    <span className="text-xs font-headline font-bold text-primary dark:text-primary-fixed-dim">
-                      ${(item.product.price * item.quantity).toFixed(2)}
-                    </span>
+                    <p className="font-bold text-primary">Bs {(item.quantity * item.price).toFixed(2)}</p>
                   </div>
-                </motion.div>
-              ))}
-            </AnimatePresence>
-          )}
-        </div>
-
-        {/* Checkout summary panel */}
-        <div className="p-6 bg-surface-container-lowest shadow-[0_-10px_20px_rgba(0,0,0,0.01)] border-t border-outline-variant/10 space-y-4 shrink-0">
-          
-          <div className="space-y-2 border-b border-outline-variant/15 pb-4">
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-on-surface-variant font-label">Subtotal</span>
-              <span className="text-on-surface font-medium">${subtotal.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center text-xs">
-              <span className="text-on-surface-variant font-label">IVA (13%)</span>
-              <span className="text-on-surface font-medium">${tax.toFixed(2)}</span>
-            </div>
-            <div className="flex justify-between items-center text-sm pt-2">
-              <span className="font-headline font-bold text-on-surface">Total</span>
-              <span className="font-headline font-extrabold text-primary dark:text-primary-fixed-dim text-lg">
-                ${total.toFixed(2)}
-              </span>
-            </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          {/* Payment Method Selector Grid */}
-          <div>
-            <span className="text-[10px] text-on-surface-variant font-label font-bold uppercase tracking-wider block mb-2">
-              Método de Pago
-            </span>
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { id: 'Efectivo', icon: Wallet },
-                { id: 'Tarjeta', icon: CreditCard },
-                { id: 'QR', icon: QrCode },
-                { id: 'Crédito', icon: ClipboardList },
-              ].map((m) => {
-                const isSelected = paymentMethod === m.id;
-                const Icon = m.icon;
-                return (
-                  <button
-                    key={m.id}
-                    onClick={() => setPaymentMethod(m.id as any)}
-                    className={`flex flex-col items-center justify-center py-2.5 rounded-xl border transition-all active:scale-95 cursor-pointer ${
-                      isSelected
-                        ? 'bg-primary text-on-primary border-primary shadow-sm'
-                        : 'bg-surface-container-high text-on-surface-variant border-outline-variant/10 hover:bg-surface-container-highest'
-                    }`}
+          <div className="p-4 bg-surface-container-high/30 border-t border-outline-variant/10">
+            <div className="flex justify-between items-center mb-4">
+              <span className="font-bold text-lg text-on-surface">Total</span>
+              <span className="font-bold text-2xl text-primary">Bs {total.toFixed(2)}</span>
+            </div>
+            
+            <div className="mb-4">
+              <label className="text-xs font-bold text-secondary uppercase block mb-2">Método de Pago</label>
+              <div className="grid grid-cols-3 gap-2">
+                {['Efectivo', 'Tarjeta', 'QR'].map(m => (
+                  <button 
+                    key={m} 
+                    onClick={() => setPaymentMethod(m)}
+                    className={`py-1.5 text-xs font-bold rounded border ${paymentMethod === m ? 'bg-primary text-on-primary border-primary' : 'bg-surface text-secondary border-outline-variant/20 hover:bg-surface-container'}`}
                   >
-                    <Icon className="w-5 h-5 mb-1" />
-                    <span className="text-[9px] font-label font-bold uppercase tracking-widest">
-                      {m.id}
-                    </span>
+                    {m}
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
-          </div>
 
-          {/* Big Checkout Trigger Button */}
-          <button
-            onClick={handleCheckout}
-            disabled={cart.length === 0}
-            className={`w-full py-3.5 bg-gradient-to-r from-primary to-primary-container text-on-primary rounded-xl font-headline font-bold text-base shadow-lg shadow-primary/10 hover:shadow-primary/30 hover:opacity-95 transition-all active:scale-[0.98] flex items-center justify-center gap-2 cursor-pointer ${
-              cart.length === 0 ? 'opacity-50 cursor-not-allowed hover:shadow-none' : ''
-            }`}
-          >
-            <ShoppingCart className="w-4 h-4" />
-            Procesar Venta
-          </button>
-        </div>
-      </section>
-
-      {/* MODAL 1: Create Client Dialog */}
-      <AnimatePresence>
-        {showNewClientModal && (
-          <div className="fixed inset-0 bg-black/40 backdrop-blur-md z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.95, opacity: 0 }}
-              className="bg-surface-container-lowest rounded-2xl max-w-sm w-full p-6 shadow-2xl border border-outline-variant/20"
+            <button 
+              onClick={handleProcessSale}
+              disabled={cart.length === 0}
+              className={`w-full py-3 rounded-lg font-bold text-lg flex items-center justify-center gap-2 ${cart.length === 0 ? 'bg-outline-variant/20 text-secondary cursor-not-allowed' : 'bg-primary text-on-primary hover:bg-primary/90 transition-colors'}`}
             >
-              <h3 className="font-headline font-bold text-lg text-on-surface mb-2">Nuevo Cliente</h3>
-              <p className="text-xs text-on-surface-variant opacity-80 mb-4 font-body">
-                Registre los detalles del cliente para fines de facturación y logs.
-              </p>
-
-              <form onSubmit={handleCreateClient} className="space-y-4">
-                <div>
-                  <label className="text-[10px] text-on-surface-variant font-label uppercase font-bold tracking-wider block mb-1">
-                    Nombre o Razón Social
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newClientName}
-                    onChange={(e) => setNewClientName(e.target.value)}
-                    className="w-full text-xs font-body p-2 bg-surface-container-low border border-outline-variant/30 rounded-lg outline-none focus:ring-1 focus:ring-primary focus:border-primary text-on-surface"
-                    placeholder="Ej. Juan Pérez"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-[10px] text-on-surface-variant font-label uppercase font-bold tracking-wider block mb-1">
-                    NIT o CI del Cliente
-                  </label>
-                  <input
-                    type="text"
-                    value={newClientNit}
-                    onChange={(e) => setNewClientNit(e.target.value)}
-                    className="w-full text-xs font-body p-2 bg-surface-container-low border border-outline-variant/30 rounded-lg outline-none focus:ring-1 focus:ring-primary focus:border-primary text-on-surface"
-                    placeholder="Ej. 10293848"
-                  />
-                </div>
-
-                <div className="flex gap-2 justify-end pt-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowNewClientModal(false)}
-                    className="px-4 py-2 hover:bg-surface-container-high rounded-lg text-xs font-semibold font-label uppercase tracking-widest text-on-surface-variant cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="px-4 py-2 bg-primary text-on-primary rounded-lg text-xs font-semibold font-label uppercase tracking-widest cursor-pointer shadow-md shadow-primary/10 hover:opacity-95"
-                  >
-                    Guardar
-                  </button>
-                </div>
-              </form>
-            </motion.div>
+              Procesar Venta
+            </button>
           </div>
-        )}
-      </AnimatePresence>
+        </section>
+      </div>
 
-      {/* MODAL 2: Receipt Receipt Success View */}
-      <AnimatePresence>
-        {showReceiptModal && justProcessedTx && (
-          <div className="fixed inset-0 bg-black/55 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ scale: 0.95, y: 15, opacity: 0 }}
-              animate={{ scale: 1, y: 0, opacity: 1 }}
-              exit={{ scale: 0.95, y: 15, opacity: 0 }}
-              className="bg-surface-container-lowest rounded-2xl max-w-sm w-full p-6 shadow-2xl relative border border-outline-variant/20 overflow-hidden"
+      {/* Modal Comprobante */}
+      {showReceipt && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-surface-container-lowest rounded-xl max-w-sm w-full p-6 shadow-2xl">
+            <div className="text-center mb-6">
+              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3">
+                <Check className="w-6 h-6" />
+              </div>
+              <h2 className="text-xl font-bold text-on-surface">Venta Exitosa</h2>
+              <p className="text-sm text-secondary">Comprobante #FAC-9921</p>
+            </div>
+
+            <div className="bg-surface p-4 rounded-lg border border-outline-variant/10 text-sm mb-4 space-y-2">
+              <div className="flex justify-between"><span className="text-secondary">Cliente:</span><span className="font-bold text-on-surface">{clientName}</span></div>
+              <div className="flex justify-between"><span className="text-secondary">NIT/CI:</span><span className="font-bold text-on-surface">{clientNit}</span></div>
+              <div className="flex justify-between"><span className="text-secondary">Método:</span><span className="font-bold text-on-surface">{paymentMethod}</span></div>
+              <div className="flex justify-between border-t border-outline-variant/10 pt-2"><span className="text-secondary">Total Pagado:</span><span className="font-bold text-primary">Bs {total.toFixed(2)}</span></div>
+            </div>
+
+            <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800 flex items-center gap-3 mb-6">
+              <Award className="w-8 h-8 text-purple-500" />
+              <div>
+                <p className="text-sm font-bold text-purple-900 dark:text-purple-300">Puntos Asignados</p>
+                <p className="text-xs text-purple-700 dark:text-purple-400">{clientName} ganó {Math.floor(total)} puntos</p>
+              </div>
+            </div>
+
+            <button 
+              onClick={closeReceipt}
+              className="w-full py-2 bg-primary text-on-primary rounded-lg font-bold hover:bg-primary/90"
             >
-              {/* Confetti element */}
-              <div className="absolute top-0 inset-x-0 h-1.5 bg-gradient-to-r from-primary to-primary-container"></div>
-              
-              <div className="text-center pt-2">
-                <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center mx-auto text-primary mb-3">
-                  <Check className="w-6 h-6 stroke-[3]" />
-                </div>
-                <h3 className="font-headline font-bold text-xl text-on-surface">Venta Completada</h3>
-                <p className="text-[10px] text-on-surface-variant font-mono uppercase mt-1 tracking-wider">
-                  Código: {justProcessedTx.id}
-                </p>
-              </div>
-
-              {/* Receipt details */}
-              <div className="mt-6 bg-surface-container-low p-4 rounded-xl space-y-3 font-mono text-xs text-on-surface-variant/90 border border-outline-variant/10">
-                <div className="flex justify-between">
-                  <span>Sucursal:</span>
-                  <span className="font-semibold text-on-surface">Central</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Cliente:</span>
-                  <span className="font-semibold text-on-surface truncate max-w-[150px]">{justProcessedTx.client}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>CI/NIT:</span>
-                  <span className="font-semibold text-on-surface">{clientNit}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Método de Pago:</span>
-                  <span className="font-semibold text-on-surface">{justProcessedTx.method}</span>
-                </div>
-                <div className="flex justify-between border-t border-dashed border-outline-variant/40 pt-2.5 text-sm">
-                  <span className="text-on-surface">Monto Pagado:</span>
-                  <span className="font-bold text-primary">${justProcessedTx.amount.toFixed(2)}</span>
-                </div>
-              </div>
-
-              <div className="mt-6 flex flex-col gap-2">
-                <button
-                  onClick={() => setShowReceiptModal(false)}
-                  className="w-full py-2.5 bg-primary text-on-primary rounded-xl font-headline font-bold text-sm tracking-wide shadow-md shadow-primary/25 hover:opacity-95 transition-all text-center cursor-pointer"
-                >
-                  Regresar al Punto de Venta
-                </button>
-              </div>
-            </motion.div>
+              Cerrar
+            </button>
           </div>
-        )}
-      </AnimatePresence>
+        </div>
+      )}
 
     </div>
   );

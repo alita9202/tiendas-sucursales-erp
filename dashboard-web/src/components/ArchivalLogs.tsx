@@ -26,7 +26,7 @@ export default function ArchivalLogs({ logs }: ArchivalLogsProps) {
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4 shrink-0">
         <div>
-          <h2 className="text-4xl font-headline font-bold text-on-surface">Historial de Logs</h2>
+          <h2 className="text-4xl font-headline font-bold text-on-surface">Historial y Evidencias</h2>
           <p className="text-on-surface-variant mt-2 font-body text-sm opacity-80 max-w-lg leading-relaxed">
             Libro de contabilidad inmutable y auditoría de flujo de stock en tiempo real.
           </p>

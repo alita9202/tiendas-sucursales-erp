@@ -1,0 +1,25 @@
+-- 02-seed-demo.sql
+-- Company Service Seed Data
+-- Ejecutar conectado a 'company_service_db'
+
+-- UUIDs fijos para idempotencia
+INSERT INTO companies (id, name, nit) VALUES 
+('c0000000-0000-0000-0000-000000000001', 'Abuelita Serafina SuperMarket Bolivia S.A.', '123456701'),
+('c0000000-0000-0000-0000-000000000002', 'OXXO Bolivia', '123456702'),
+('c0000000-0000-0000-0000-000000000003', 'Hipermaxi', '123456703'),
+('c0000000-0000-0000-0000-000000000004', 'IC Norte', '123456704')
+ON CONFLICT (id) DO NOTHING;
+
+-- Branches
+INSERT INTO branches (id, company_id, name, city) VALUES 
+-- OXXO Bolivia
+('b0000000-0000-0000-0000-000000000001', 'c0000000-0000-0000-0000-000000000002', 'Sucursal Prado', 'La Paz'),
+('b0000000-0000-0000-0000-000000000002', 'c0000000-0000-0000-0000-000000000002', 'Sucursal El Alto', 'El Alto'),
+-- Hipermaxi
+('b0000000-0000-0000-0000-000000000003', 'c0000000-0000-0000-0000-000000000003', 'Sucursal 1', 'Santa Cruz'),
+-- IC Norte
+('b0000000-0000-0000-0000-000000000004', 'c0000000-0000-0000-0000-000000000004', 'Melchor Perez', 'Cochabamba'),
+-- Abuelita Serafina
+('b0000000-0000-0000-0000-000000000005', 'c0000000-0000-0000-0000-000000000001', 'Central', 'La Paz'),
+('b0000000-0000-0000-0000-000000000006', 'c0000000-0000-0000-0000-000000000001', 'Zona Sur', 'La Paz')
+ON CONFLICT (id) DO NOTHING;

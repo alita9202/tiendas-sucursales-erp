@@ -1,41 +1,55 @@
-import { LayoutDashboard, Boxes, CreditCard, Settings, History } from 'lucide-react';
+import { 
+  LayoutDashboard, 
+  Building2, 
+  Package, 
+  Truck, 
+  Boxes, 
+  CreditCard, 
+  ArrowRightLeft, 
+  BarChart2, 
+  Bell, 
+  History, 
+  Settings, 
+  ClipboardCheck 
+} from 'lucide-react';
 import { motion } from 'motion/react';
 
+export type TabId = 
+  | 'dashboard' 
+  | 'companies' 
+  | 'products' 
+  | 'inventory-load' 
+  | 'inventory' 
+  | 'pos' 
+  | 'transfers' 
+  | 'reports' 
+  | 'notifications' 
+  | 'history' 
+  | 'settings' 
+  | 'checklist';
+
 interface SideNavBarProps {
-  activeTab: 'dashboard' | 'inventory' | 'pos' | 'settings' | 'history';
-  setActiveTab: (tab: 'dashboard' | 'inventory' | 'pos' | 'settings' | 'history') => void;
+  activeTab: TabId;
+  setActiveTab: (tab: TabId) => void;
 }
 
 export default function SideNavBar({ activeTab, setActiveTab }: SideNavBarProps) {
   const menuItems = [
-    {
-      id: 'dashboard' as const,
-      label: 'Executive Dashboard',
-      icon: LayoutDashboard,
-    },
-    {
-      id: 'inventory' as const,
-      label: 'Inventory Manager',
-      icon: Boxes,
-    },
-    {
-      id: 'pos' as const,
-      label: 'POS Checkout',
-      icon: CreditCard,
-    },
+    { id: 'dashboard' as const, label: 'Panel Ejecutivo', icon: LayoutDashboard },
+    { id: 'companies' as const, label: 'Empresas y Sucursales', icon: Building2 },
+    { id: 'products' as const, label: 'Productos y Categorías', icon: Package },
+    { id: 'inventory-load' as const, label: 'Carga de Inventario', icon: Truck },
+    { id: 'inventory' as const, label: 'Inventario', icon: Boxes },
+    { id: 'pos' as const, label: 'Ventas / Punto de Venta', icon: CreditCard },
+    { id: 'transfers' as const, label: 'Transferencias', icon: ArrowRightLeft },
+    { id: 'reports' as const, label: 'Reportes', icon: BarChart2 },
+    { id: 'notifications' as const, label: 'Notificaciones', icon: Bell },
+    { id: 'history' as const, label: 'Historial y Evidencias', icon: History },
   ];
 
   const subItems = [
-    {
-      id: 'settings' as const,
-      label: 'Settings',
-      icon: Settings,
-    },
-    {
-      id: 'history' as const,
-      label: 'Archival Logs',
-      icon: History,
-    },
+    { id: 'settings' as const, label: 'Configuración', icon: Settings },
+    { id: 'checklist' as const, label: 'Checklist de Defensa', icon: ClipboardCheck },
   ];
 
   return (
@@ -43,15 +57,15 @@ export default function SideNavBar({ activeTab, setActiveTab }: SideNavBarProps)
       {/* Brand Header */}
       <div className="px-8 py-10">
         <h1 className="text-xl font-headline font-bold text-on-surface tracking-tight">
-          Alexandria Retail
+          SuperMarket Demo
         </h1>
         <p className="font-label text-[10px] uppercase tracking-[0.2em] text-secondary opacity-70 mt-1">
-          Premium Management
+          Arquitectura de Software
         </p>
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 px-4 space-y-1">
+      <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
         {menuItems.map((item) => {
           const isActive = activeTab === item.id;
           const Icon = item.icon;
@@ -60,7 +74,7 @@ export default function SideNavBar({ activeTab, setActiveTab }: SideNavBarProps)
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-4 px-6 py-4 w-full transition-all duration-300 text-left rounded-lg group relative cursor-pointer ${
+              className={`flex items-center gap-4 px-6 py-3 w-full transition-all duration-300 text-left rounded-lg group relative cursor-pointer ${
                 isActive
                   ? 'text-primary dark:text-primary-fixed-dim font-bold bg-surface-container-highest/60'
                   : 'text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 hover:opacity-100'
@@ -69,7 +83,7 @@ export default function SideNavBar({ activeTab, setActiveTab }: SideNavBarProps)
               {isActive && (
                 <motion.div
                   layoutId="activeSideBarTabGlow"
-                  className="absolute right-0 top-3 bottom-3 w-1 bg-primary rounded-l-full"
+                  className="absolute right-0 top-2 bottom-2 w-1 bg-primary rounded-l-full"
                   transition={{ type: 'spring', stiffness: 350, damping: 30 }}
                 />
               )}
@@ -94,28 +108,35 @@ export default function SideNavBar({ activeTab, setActiveTab }: SideNavBarProps)
             <button
               key={item.id}
               onClick={() => setActiveTab(item.id)}
-              className={`flex items-center gap-4 px-10 py-3 w-full transition-all duration-300 text-left rounded-lg cursor-pointer group ${
+              className={`flex items-center gap-4 px-6 py-3 w-full transition-all duration-300 text-left rounded-lg cursor-pointer group ${
                 isActive
                   ? 'text-primary dark:text-primary-fixed-dim font-bold bg-surface-container-highest/60'
                   : 'text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-blue-500/10 hover:opacity-100'
               }`}
             >
-              <Icon className="w-4 h-4 text-slate-500 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400" />
-              <span className="font-body text-xs font-medium">{item.label}</span>
+              {isActive && (
+                <motion.div
+                  layoutId="activeSideBarTabGlowFooter"
+                  className="absolute right-0 top-2 bottom-2 w-1 bg-primary rounded-l-full"
+                  transition={{ type: 'spring', stiffness: 350, damping: 30 }}
+                />
+              )}
+              <Icon className={`w-5 h-5 transition-transform group-hover:scale-105 ${
+                  isActive ? 'text-primary' : 'text-slate-500 dark:text-slate-500 group-hover:text-blue-600 dark:group-hover:text-blue-400'
+                }`} />
+              <span className="font-body text-sm font-medium">{item.label}</span>
             </button>
           );
         })}
 
         {/* Admin User headshot card */}
         <div className="mt-4 pt-4 border-t border-outline-variant/10 flex items-center gap-3 px-6 py-2">
-          <img
-            alt="Admin User Headshot"
-            className="w-10 h-10 rounded-full object-cover shadow-sm bg-neutral-200"
-            src="https://lh3.googleusercontent.com/aida-public/AB6AXuCPuHHJXCP7QR0mNguzAhZuL92CCzj8-wPimJEsH2jkx2kkt5RQ_t3G3QxLjBfKuBVCK-niQ5BabU-cA5ozLrySuMUpo1trJDN-OL6CHJ10tGOgeAbCfZJ-IasCIlzHrHbYc_7t0VY8-TKVHNE_Cud7EMinNuXeQWMunWVezpDSi7hUkYZwm_3NgsSK6Klztq9wBrP3GyU4kSTrUqRF_m1eUqP5pk9RCpNDTnMMSmOfVlpTDqD3ccoB1GLnnr7qY4xhLLElDmN0tK0"
-          />
+          <div className="w-10 h-10 rounded-full bg-primary/20 flex items-center justify-center text-primary font-bold">
+            AD
+          </div>
           <div className="flex flex-col min-w-0">
             <span className="text-xs font-semibold text-on-surface truncate">Admin Usuario</span>
-            <span className="text-[10px] text-on-surface-variant opacity-70 truncate font-label">Corporate HQ</span>
+            <span className="text-[10px] text-on-surface-variant opacity-70 truncate font-label">Equipo de Desarrollo</span>
           </div>
         </div>
       </div>
