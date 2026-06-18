@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Product, ArchivalLog } from '../types';
 import { Boxes, RefreshCw, AlertTriangle, FileSpreadsheet, Search } from 'lucide-react';
 
@@ -16,14 +16,13 @@ export default function InventoryManager({
   addLog,
 }: InventoryManagerProps) {
 
-  // Mock data para simular el caso de demostración
-  const [mockInventory] = useState([
+  const [mockInventory, setMockInventory] = useState([
     {
       id: 'inv1',
       product: 'Leche Pil 980cc',
       company: 'OXXO Bolivia',
       branch: 'Sucursal Prado',
-      quantity: 48, // Queda 48
+      quantity: 48,
       lowStock: false,
     },
     {
@@ -31,7 +30,7 @@ export default function InventoryManager({
       product: 'Leche Pil 980cc',
       company: 'OXXO Bolivia',
       branch: 'Sucursal El Alto',
-      quantity: 50, // 50 después de transferencia
+      quantity: 50,
       lowStock: false,
     },
     {
@@ -39,10 +38,34 @@ export default function InventoryManager({
       product: 'Mayonesa Cris',
       company: 'Hipermaxi',
       branch: 'Sucursal 1',
-      quantity: 4, // Stock bajo
+      quantity: 4,
       lowStock: true,
     }
   ]);
+
+  useEffect(() => {
+    const fetchInv = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/inventory');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.length > 0) {
+            setMockInventory(data.map((row: any) => ({
+              id: row.branch_id + '-' + row.product_id,
+              product: row.product_name,
+              company: row.company_name,
+              branch: row.branch_name,
+              quantity: Number(row.stock_quantity),
+              lowStock: row.status === 'Bajo',
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn('Backend unavailable, using mock inventory', err);
+      }
+    };
+    fetchInv();
+  }, []);
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-surface dark:bg-surface-dark">
@@ -65,7 +88,7 @@ export default function InventoryManager({
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 rounded-r-lg flex gap-3 items-start">
           <Boxes className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
           <p className="text-yellow-800 dark:text-yellow-300 font-medium text-sm">
-            Responsable: Inventory Service. Pendiente: conectar GET /inventory, GET /inventory/:id/kardex.
+            Responsable: Inventory Service. Estado actual: módulo base funcional para demostración. Pendiente del responsable: completar integración, validaciones y pruebas del módulo.
           </p>
         </div>
 

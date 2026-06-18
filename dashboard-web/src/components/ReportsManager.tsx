@@ -1,6 +1,50 @@
+import { useState, useEffect } from 'react';
 import { BarChart2, Download, RefreshCw, FileText } from 'lucide-react';
 
 export default function ReportsManager() {
+  const [stockReport, setStockReport] = useState([
+    { name: 'IC Norte / Melchor Perez', qty: 85, color: 'bg-blue-500' },
+    { name: 'OXXO Bolivia / Sucursal El Alto', qty: 50, color: 'bg-green-500' },
+    { name: 'OXXO Bolivia / Sucursal Prado', qty: 48, color: 'bg-yellow-500' },
+    { name: 'Hipermaxi / Sucursal 1', qty: 18, color: 'bg-red-500' },
+  ]);
+  const [salesDay, setSalesDay] = useState(null);
+
+  const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 'bg-purple-500'];
+
+  const fetchReports = async () => {
+    try {
+      const [sRes, sdRes] = await Promise.all([
+        fetch('http://localhost:3000/api/reports/stock'),
+        fetch('http://localhost:3000/api/reports/sales-day')
+      ]);
+      if (sRes.ok) {
+        const sData = await sRes.json();
+        if (sData.length > 0) {
+          setStockReport(sData.map((d: any, i: number) => ({
+            name: `${d.company_name} / ${d.branch_name}`,
+            qty: Number(d.total_stock) || 0,
+            color: colors[i % colors.length]
+          })));
+        }
+      }
+      if (sdRes.ok) {
+        const sdData = await sdRes.json();
+        if (sdData.length > 0) {
+          setSalesDay(sdData[0]); // since view groups by day
+        }
+      }
+    } catch (e) {
+      console.warn('Usando datos mock de reportes', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchReports();
+  }, []);
+
+  const totalStock = stockReport.reduce((acc, it) => acc + it.qty, 0);
+
   return (
     <div className="h-full overflow-y-auto p-6 bg-surface dark:bg-surface-dark">
       <div className="max-w-6xl mx-auto space-y-6">
@@ -11,7 +55,7 @@ export default function ReportsManager() {
             <p className="text-secondary mt-1">Análisis consolidado de inventario y ventas.</p>
           </div>
           <div className="flex gap-2">
-            <button className="flex items-center gap-2 bg-surface text-secondary border border-outline-variant/30 px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface-container transition-colors">
+            <button onClick={fetchReports} className="flex items-center gap-2 bg-surface text-secondary border border-outline-variant/30 px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface-container transition-colors">
               <RefreshCw className="w-4 h-4" />
               Actualizar
             </button>
@@ -26,6 +70,13 @@ export default function ReportsManager() {
           </div>
         </header>
 
+        <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 rounded-r-lg flex gap-3 items-start">
+          <FileText className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
+          <p className="text-yellow-800 dark:text-yellow-300 font-medium text-sm">
+            Responsable: Reporting Service. Estado actual: módulo base funcional para demostración. Pendiente del responsable: completar integración, validaciones y pruebas del módulo.
+          </p>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           
           {/* Reporte 1: Stock consolidado */}
@@ -36,7 +87,7 @@ export default function ReportsManager() {
                 Stock Consolidado por Producto
               </h2>
               <select className="text-sm bg-surface border border-outline-variant/30 rounded px-2 py-1">
-                <option>Leche Pil 980cc</option>
+                <option>Filtrar por Todos</option>
               </select>
             </div>
             
@@ -44,24 +95,19 @@ export default function ReportsManager() {
               <div className="mb-6 flex justify-between items-end">
                 <div>
                   <p className="text-sm text-secondary">Total Consolidado</p>
-                  <p className="text-3xl font-bold text-on-surface">201 <span className="text-sm font-normal text-secondary">bolsas</span></p>
+                  <p className="text-3xl font-bold text-on-surface">{totalStock} <span className="text-sm font-normal text-secondary">unidades</span></p>
                 </div>
               </div>
 
               <div className="space-y-4 flex-1">
-                {[
-                  { name: 'IC Norte / Melchor Perez', qty: 85, color: 'bg-blue-500' },
-                  { name: 'OXXO Bolivia / Sucursal El Alto', qty: 50, color: 'bg-green-500' },
-                  { name: 'OXXO Bolivia / Sucursal Prado', qty: 48, color: 'bg-yellow-500' },
-                  { name: 'Hipermaxi / Sucursal 1', qty: 18, color: 'bg-red-500' },
-                ].map((item, i) => (
+                {stockReport.map((item, i) => (
                   <div key={i} className="space-y-1">
                     <div className="flex justify-between text-sm">
                       <span className="font-medium text-on-surface">{item.name}</span>
                       <span className="font-bold">{item.qty}</span>
                     </div>
                     <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
-                      <div className={`h-full ${item.color}`} style={{ width: `${(item.qty / 85) * 100}%` }}></div>
+                      <div className={`h-full ${item.color}`} style={{ width: `${Math.min((item.qty / Math.max(totalStock, 1)) * 100, 100)}%` }}></div>
                     </div>
                   </div>
                 ))}

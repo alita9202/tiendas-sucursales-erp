@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Building2, MapPin, Plus, Edit } from 'lucide-react';
 
 export default function CompaniesBranchesManager() {
-  const [companies] = useState([
+  const [companies, setCompanies] = useState([
     {
       id: 'c1',
       name: 'Abuelita Serafina SuperMarket Bolivia S.A.',
@@ -38,6 +38,36 @@ export default function CompaniesBranchesManager() {
       ]
     }
   ]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        const [compRes, branchRes] = await Promise.all([
+          fetch('http://localhost:3000/api/companies'),
+          fetch('http://localhost:3000/api/branches')
+        ]);
+        if (compRes.ok && branchRes.ok) {
+          const compData = await compRes.json();
+          const branchData = await branchRes.json();
+          
+          if (compData.length > 0) {
+            const formattedCompanies = compData.map((c: any) => ({
+              id: c.id,
+              name: c.name,
+              status: 'active',
+              branches: branchData
+                .filter((b: any) => b.company_id === c.id)
+                .map((b: any) => ({ id: b.id, name: b.name, city: b.address, status: 'active' }))
+            }));
+            setCompanies(formattedCompanies);
+          }
+        }
+      } catch (err) {
+        console.warn('Backend no disponible, usando fallback mock data', err);
+      }
+    };
+    fetchData();
+  }, []);
 
   const totalBranches = companies.reduce((acc, c) => acc + c.branches.length, 0);
 

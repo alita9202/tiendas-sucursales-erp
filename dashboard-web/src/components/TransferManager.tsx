@@ -1,8 +1,51 @@
-import { useState } from 'react';
-import { ArrowRightLeft, Package } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowRightLeft, AlertCircle, Search, RefreshCw } from 'lucide-react';
 
 export default function TransferManager() {
-  const [transferAmount, setTransferAmount] = useState(50);
+  const [branches, setBranches] = useState([]);
+  const [products, setProducts] = useState([]);
+  
+  const [formData, setFormData] = useState({
+    source_branch: '',
+    dest_branch: '',
+    product_id: '',
+    quantity: 50,
+    user_id: 'EMP-001'
+  });
+
+  useEffect(() => {
+    Promise.all([
+      fetch('http://localhost:3000/api/branches').then(r => r.json()).catch(() => []),
+      fetch('http://localhost:3000/api/products').then(r => r.json()).catch(() => [])
+    ]).then(([bData, pData]) => {
+      if (bData.length > 1) {
+        setBranches(bData);
+        setFormData(f => ({ ...f, source_branch: bData[0].id, dest_branch: bData[1].id }));
+      }
+      if (pData.length > 0) {
+        setProducts(pData);
+        setFormData(f => ({ ...f, product_id: pData[0].id }));
+      }
+    });
+  }, []);
+
+  const handleTransfer = async () => {
+    if (formData.source_branch === formData.dest_branch) {
+      alert('La sucursal origen y destino deben ser distintas');
+      return;
+    }
+    try {
+      const res = await fetch('http://localhost:3000/api/inventory/transfer', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(formData)
+      });
+      if (res.ok) alert('Transferencia completada');
+      else alert('Error en la transferencia. Verifica el stock en el origen.');
+    } catch (e) {
+      alert('Backend no disponible. Simulando transferencia.');
+    }
+  };
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-surface dark:bg-surface-dark">
@@ -11,7 +54,7 @@ export default function TransferManager() {
         <header className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-on-surface">Transferencias</h1>
-            <p className="text-secondary mt-1">Movimiento de inventario entre sucursales.</p>
+            <p className="text-secondary mt-1">Gestión de movimiento de inventario entre sucursales.</p>
           </div>
         </header>
 
@@ -19,98 +62,94 @@ export default function TransferManager() {
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 rounded-r-lg flex gap-3 items-start">
           <ArrowRightLeft className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
           <p className="text-yellow-800 dark:text-yellow-300 font-medium text-sm">
-            Responsable: Inventory Service. Pendiente: conectar POST /inventory/transfer.
+            Responsable: Inventory Service. Estado actual: módulo base funcional para demostración. Pendiente del responsable: completar integración, validaciones y pruebas del módulo.
           </p>
         </div>
 
-        <div className="bg-surface-container rounded-xl border border-outline-variant/20 p-6">
-          <form className="space-y-6">
+        <div className="bg-surface-container rounded-xl border border-outline-variant/20 p-6 relative">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 relative z-10">
             
-            <div className="space-y-1.5">
-              <label className="text-sm font-medium text-on-surface">Producto a transferir</label>
-              <div className="flex items-center gap-3 bg-surface border border-outline-variant/30 rounded-lg p-3">
-                <Package className="w-5 h-5 text-secondary" />
-                <select className="w-full bg-transparent focus:outline-none text-sm">
-                  <option>Leche Pil 980cc (PROD-002)</option>
-                  <option>Mayonesa Cris (PROD-003)</option>
+            {/* Origen */}
+            <div className="space-y-4">
+              <h2 className="font-bold text-on-surface text-lg">Origen</h2>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-secondary">Sucursal de Salida</label>
+                <select 
+                  value={formData.source_branch}
+                  onChange={e => setFormData({ ...formData, source_branch: e.target.value })}
+                  className="w-full bg-surface border border-outline-variant/30 rounded-lg px-3 py-2"
+                >
+                  {branches.length > 0 ? branches.map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  )) : (
+                    <option value="HIPER-C">OXXO Prado (Mock)</option>
+                  )}
                 </select>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_auto_1fr] gap-6 items-center">
-              
-              {/* Origen */}
-              <div className="bg-surface border border-outline-variant/30 rounded-xl p-5 space-y-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-red-500"></div>
-                <h3 className="font-bold text-on-surface">Origen</h3>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-secondary">Supermercado</label>
-                  <select disabled className="w-full bg-surface-container-high border-none rounded px-2 py-1 text-sm appearance-none cursor-not-allowed">
-                    <option>OXXO Bolivia</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-secondary">Sucursal</label>
-                  <select className="w-full bg-surface-container border border-outline-variant/30 rounded px-2 py-1.5 text-sm focus:outline-none">
-                    <option>Sucursal Prado</option>
-                  </select>
-                </div>
-                <div className="pt-2 border-t border-outline-variant/10 flex justify-between items-center">
-                  <span className="text-xs text-secondary">Stock actual:</span>
-                  <span className="font-bold text-red-600">100 unidades</span>
-                </div>
+            {/* Icono Central */}
+            <div className="hidden md:flex absolute inset-0 items-center justify-center pointer-events-none z-0">
+              <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center text-primary">
+                <ArrowRightLeft className="w-6 h-6" />
               </div>
-
-              {/* Icono Centro */}
-              <div className="flex flex-col items-center justify-center space-y-2">
-                <div className="bg-primary/10 p-3 rounded-full text-primary">
-                  <ArrowRightLeft className="w-6 h-6" />
-                </div>
-                <div className="w-24">
-                  <label className="text-xs font-medium text-center block mb-1 text-secondary">Cantidad</label>
-                  <input 
-                    type="number" 
-                    value={transferAmount}
-                    onChange={(e) => setTransferAmount(Number(e.target.value))}
-                    className="w-full bg-surface border-2 border-primary/30 rounded-lg px-2 py-1.5 text-center font-bold text-primary focus:outline-none focus:border-primary" 
-                  />
-                </div>
-              </div>
-
-              {/* Destino */}
-              <div className="bg-surface border border-outline-variant/30 rounded-xl p-5 space-y-4 relative overflow-hidden">
-                <div className="absolute top-0 left-0 w-1 h-full bg-green-500"></div>
-                <h3 className="font-bold text-on-surface">Destino</h3>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-secondary">Supermercado</label>
-                  <select disabled className="w-full bg-surface-container-high border-none rounded px-2 py-1 text-sm appearance-none cursor-not-allowed">
-                    <option>OXXO Bolivia</option>
-                  </select>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="text-xs font-medium text-secondary">Sucursal</label>
-                  <select className="w-full bg-surface-container border border-outline-variant/30 rounded px-2 py-1.5 text-sm focus:outline-none">
-                    <option>Sucursal El Alto</option>
-                  </select>
-                </div>
-                <div className="pt-2 border-t border-outline-variant/10 flex justify-between items-center">
-                  <span className="text-xs text-secondary">Stock actual:</span>
-                  <span className="font-bold text-green-600">0 unidades</span>
-                </div>
-              </div>
-
             </div>
 
-            <div className="pt-6">
-              <button 
-                type="button" 
-                onClick={() => alert(`Simulando transferencia de ${transferAmount} unidades. Disminuye en Prado, aumenta en El Alto. Evento TransferCompleted simulado.`)}
-                className="w-full bg-primary text-on-primary py-3 rounded-lg font-bold text-lg hover:bg-primary/90 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+            {/* Destino */}
+            <div className="space-y-4">
+              <h2 className="font-bold text-on-surface text-lg">Destino</h2>
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-secondary">Sucursal de Entrada</label>
+                <select 
+                  value={formData.dest_branch}
+                  onChange={e => setFormData({ ...formData, dest_branch: e.target.value })}
+                  className="w-full bg-surface border border-outline-variant/30 rounded-lg px-3 py-2"
+                >
+                  {branches.length > 0 ? branches.map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  )) : (
+                    <option value="HIPER-S">OXXO El Alto (Mock)</option>
+                  )}
+                </select>
+              </div>
+            </div>
+
+          </div>
+
+          <div className="mt-8 pt-8 border-t border-outline-variant/10 grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
+            <div className="space-y-2">
+              <label className="text-sm font-medium text-secondary">Producto a Transferir</label>
+              <select 
+                value={formData.product_id}
+                onChange={e => setFormData({ ...formData, product_id: e.target.value })}
+                className="w-full bg-surface border border-outline-variant/30 rounded-lg px-3 py-2"
               >
-                Transferir Stock
+                {products.length > 0 ? products.map((p: any) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                )) : (
+                  <option value="PROD-002">Leche Pil 980cc</option>
+                )}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium text-secondary">Cantidad</label>
+                <input 
+                  type="number" 
+                  value={formData.quantity}
+                  onChange={e => setFormData({ ...formData, quantity: +e.target.value })}
+                  className="w-full bg-surface border border-outline-variant/30 rounded-lg px-3 py-2" 
+                />
+              </div>
+              <button 
+                onClick={handleTransfer}
+                className="w-full bg-primary text-on-primary py-2 rounded-lg font-bold hover:bg-primary/90 flex items-center justify-center gap-2 mt-7 h-[42px]"
+              >
+                Confirmar Envío
               </button>
             </div>
-          </form>
+          </div>
         </div>
 
       </div>

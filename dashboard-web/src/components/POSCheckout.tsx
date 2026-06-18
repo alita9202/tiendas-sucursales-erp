@@ -1,20 +1,40 @@
-import { useState, FormEvent } from 'react';
+import { useState, useEffect } from 'react';
 import { CreditCard, ShoppingCart, UserPlus, Check, Award } from 'lucide-react';
 
 export default function POSCheckout() {
   const [cart, setCart] = useState<{ id: string; name: string; price: number; quantity: number }[]>([]);
   const [clientName, setClientName] = useState('Juanito Perez');
   const [clientNit, setClientNit] = useState('1234567');
-  const [branch, setBranch] = useState('Sucursal Prado');
+  
+  const [branches, setBranches] = useState<any[]>([]);
+  const [branch, setBranch] = useState('HIPER-C'); // HIPERMAXI CENTRAL fallback
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   
   const [showReceipt, setShowReceipt] = useState(false);
-
-  // Mock Products for demo
-  const products = [
+  const [products, setProducts] = useState([
     { id: 'PROD-002', name: 'Leche Pil 980cc', price: 18.50, stock: 100 },
     { id: 'PROD-003', name: 'Mayonesa Cris', price: 2.00, stock: 120 }
-  ];
+  ]);
+
+  useEffect(() => {
+    Promise.all([
+      fetch('http://localhost:3000/api/branches').then(r => r.json()).catch(() => []),
+      fetch('http://localhost:3000/api/products').then(r => r.json()).catch(() => [])
+    ]).then(([bData, pData]) => {
+      if (bData.length) {
+        setBranches(bData);
+        setBranch(bData[0].id);
+      }
+      if (pData.length) {
+        setProducts(pData.map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          price: Number(p.price) || 0,
+          stock: 999 // Real stock comes from inventory, simplified for POS display
+        })));
+      }
+    });
+  }, []);
 
   const addToCart = (prod: any) => {
     setCart(prev => {
@@ -34,8 +54,29 @@ export default function POSCheckout() {
   const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
   const total = subtotal; // Simplicado sin IVA separado para la demo
 
-  const handleProcessSale = () => {
+  const handleProcessSale = async () => {
     if (cart.length === 0) return;
+    try {
+      const items = cart.map(item => ({
+        product_id: item.id,
+        quantity: item.quantity,
+        unit_price: item.price,
+        tax_rate: 0.13
+      }));
+      await fetch('http://localhost:3000/api/sales', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          branch_id: branch,
+          customer_id: 'CUST-001',
+          user_id: 'EMP-001',
+          items,
+          payment_method: paymentMethod
+        })
+      });
+    } catch (e) {
+      console.warn('Backend no disponible para ventas', e);
+    }
     setShowReceipt(true);
   };
 
@@ -51,7 +92,7 @@ export default function POSCheckout() {
       <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 shrink-0 flex gap-3 items-start m-6 mb-0 rounded-r-lg">
         <CreditCard className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
         <p className="text-yellow-800 dark:text-yellow-300 font-medium text-sm">
-          Responsable: Sales Service. Pendiente: conectar POST /sales, GET /sales y GET /sales/:id. Evento SaleCompleted local.
+          Responsable: Sales Service. Estado actual: módulo base funcional para demostración. Pendiente del responsable: completar integración, validaciones y pruebas del módulo.
         </p>
       </div>
 
@@ -104,8 +145,13 @@ export default function POSCheckout() {
                   onChange={(e) => setBranch(e.target.value)}
                   className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm"
                 >
-                  <option>Sucursal Prado</option>
-                  <option>Sucursal El Alto</option>
+                  {branches.length > 0 ? branches.map((b: any) => (
+                    <option key={b.id} value={b.id}>{b.name}</option>
+                  )) : (
+                    <>
+                      <option value="HIPER-C">Sucursal Central (Mock)</option>
+                    </>
+                  )}
                 </select>
               </div>
               <div className="grid grid-cols-2 gap-2">

@@ -1,8 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Package, Plus, Edit, Tag, Barcode, DollarSign } from 'lucide-react';
 
 export default function ProductCatalogManager() {
-  const [products] = useState([
+  const [products, setProducts] = useState([
     {
       id: 'p1',
       code: 'PROD-002',
@@ -18,6 +18,31 @@ export default function ProductCatalogManager() {
     { id: 'p5', code: 'PROD-006', name: 'Azúcar', category: 'Abarrotes', brand: 'Guabira', price: 6.00, status: 'activo' },
     { id: 'p6', code: 'PROD-007', name: 'Fideos', category: 'Pastas', brand: 'Lazzaroni', price: 5.50, status: 'activo' }
   ]);
+
+  useEffect(() => {
+    const fetchProducts = async () => {
+      try {
+        const res = await fetch('http://localhost:3000/api/products');
+        if (res.ok) {
+          const data = await res.json();
+          if (data.length > 0) {
+            setProducts(data.map((p: any) => ({
+              id: p.id,
+              code: p.id,
+              name: p.name,
+              category: p.category,
+              brand: 'Genérico',
+              price: Number(p.price) || 0,
+              status: 'activo'
+            })));
+          }
+        }
+      } catch (err) {
+        console.warn('Backend unavailable, using mock products.', err);
+      }
+    };
+    fetchProducts();
+  }, []);
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-surface dark:bg-surface-dark">
@@ -44,7 +69,7 @@ export default function ProductCatalogManager() {
         <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 rounded-r-lg flex gap-3 items-start">
           <Package className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
           <p className="text-yellow-800 dark:text-yellow-300 font-medium text-sm">
-            Responsable: Product Service. Pendiente: conectar endpoints POST /products, GET /products, PUT /products/:id, DELETE /products/:id y GET /categories.
+            Responsable: Product Service. Estado actual: módulo base funcional para demostración. Pendiente del responsable: completar integración, validaciones y pruebas del módulo.
           </p>
         </div>
 
