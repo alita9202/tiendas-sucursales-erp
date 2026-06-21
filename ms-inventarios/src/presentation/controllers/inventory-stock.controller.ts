@@ -5,7 +5,7 @@ import { CreateInventoryStockDto } from '../../application/dto/create-inventory-
 import { UpdateInventoryStockDto } from '../../application/dto/update-inventory-stock.dto';
 
 @ApiTags('inventory-stock')
-@Controller('inventory-stock')
+@Controller(['inventory-stock', 'api/inventory', 'inventory'])
 export class InventoryStockController {
   constructor(private readonly service: InventoryStockService) {}
 
