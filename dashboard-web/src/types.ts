@@ -174,6 +174,8 @@ export interface CreateSaleItemPayload {
 export interface CreateSalePayload {
   branch_id: string;
   customer_id?: string;
+  customer_name?: string;
+  customer_nit?: string;
   receipt_number: string;
   payment_method: string;
   items: CreateSaleItemPayload[];
@@ -191,6 +193,8 @@ export interface ReceiptResponse {
   sale_id: string;
   branch_id: string;
   customer_id: string;
+  customer_name: string;
+  customer_nit: string;
   payment_method: string;
   sale_date: string;
   items: ReceiptItemDto[];

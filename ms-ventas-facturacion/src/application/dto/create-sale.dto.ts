@@ -12,6 +12,14 @@ export class CreateSaleDto {
   customer_id?: string;
 
   @IsString()
+  @IsOptional()
+  customer_name?: string;
+
+  @IsString()
+  @IsOptional()
+  customer_nit?: string;
+
+  @IsString()
   receipt_number: string;
 
   @IsString()

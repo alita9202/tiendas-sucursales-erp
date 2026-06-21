@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, UsePipes, ValidationPipe } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, UsePipes, ValidationPipe, StreamableFile, Header } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SaleService } from '../../application/services/sale.service';
+import { PdfReceiptService } from '../../application/services/pdf-receipt.service';
 import { CreateSaleDto } from '../../application/dto/create-sale.dto';
 import { UpdateSaleDto } from '../../application/dto/update-sale.dto';
 import { ReceiptResponseDto } from '../../application/dto/receipt-response.dto';
@@ -8,7 +9,10 @@ import { ReceiptResponseDto } from '../../application/dto/receipt-response.dto';
 @ApiTags('sales')
 @Controller('sales')
 export class SaleController {
-  constructor(private readonly service: SaleService) {}
+  constructor(
+    private readonly service: SaleService,
+    private readonly pdfService: PdfReceiptService,
+  ) {}
 
   @Post()
   @ApiOperation({ summary: 'Create a new sale' })
@@ -37,6 +41,18 @@ export class SaleController {
   @ApiResponse({ status: 200, description: 'Receipt retrieved successfully', type: ReceiptResponseDto })
   async getReceipt(@Param('id') id: string) {
     return await this.service.getReceipt(id);
+  }
+
+  @Get(':id/receipt/pdf')
+  @Header('Content-Type', 'application/pdf')
+  @ApiOperation({ summary: 'Download receipt as PDF' })
+  @ApiResponse({ status: 200, description: 'PDF receipt' })
+  async getReceiptPdf(@Param('id') id: string) {
+    const receipt = await this.service.getReceipt(id);
+    const buffer = await this.pdfService.generate(receipt);
+    return new StreamableFile(buffer, {
+      disposition: `inline; filename="recibo-${receipt.receipt_number}.pdf"`,
+    });
   }
 
   @Get('branch/:branchId')

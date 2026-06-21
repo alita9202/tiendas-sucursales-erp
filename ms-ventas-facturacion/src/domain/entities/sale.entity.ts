@@ -18,6 +18,12 @@ export class Sale {
   @Column({ name: 'customer_id', type: 'uuid', nullable: true })
   customer_id: string;
 
+  @Column({ name: 'customer_name', type: 'varchar', length: 200, nullable: true })
+  customer_name: string;
+
+  @Column({ name: 'customer_nit', type: 'varchar', length: 50, nullable: true })
+  customer_nit: string;
+
   @Column({ name: 'receipt_number', type: 'varchar', length: 100, unique: true })
   receipt_number: string;
 

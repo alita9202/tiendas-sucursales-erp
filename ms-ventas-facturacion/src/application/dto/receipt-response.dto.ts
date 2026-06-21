@@ -10,6 +10,8 @@ export class ReceiptResponseDto {
   sale_id: string;
   branch_id: string;
   customer_id: string;
+  customer_name: string;
+  customer_nit: string;
   payment_method: string;
   sale_date: Date;
   items: ReceiptItemDto[];

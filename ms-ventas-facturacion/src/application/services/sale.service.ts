@@ -15,6 +15,8 @@ export class SaleService {
     const saleData: DeepPartial<Sale> = {
       branch_id: createDto.branch_id,
       customer_id: createDto.customer_id,
+      customer_name: createDto.customer_name,
+      customer_nit: createDto.customer_nit,
       receipt_number: createDto.receipt_number,
       payment_method: createDto.payment_method,
       total_amount: total,
@@ -77,6 +79,8 @@ export class SaleService {
       sale_id: sale.id,
       branch_id: sale.branch_id,
       customer_id: sale.customer_id,
+      customer_name: sale.customer_name,
+      customer_nit: sale.customer_nit,
       payment_method: sale.payment_method,
       sale_date: sale.sale_date,
       items: sale.items.map((item) => ({

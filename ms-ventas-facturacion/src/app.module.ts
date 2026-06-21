@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { getTypeOrmConfig } from './infrastructure/config/typeorm.config';
 import { SaleController } from './presentation/controllers/sale.controller';
 import { SaleService } from './application/services/sale.service';
+import { PdfReceiptService } from './application/services/pdf-receipt.service';
 import { SaleRepository } from './infrastructure/repositories/sale.repository';
 import { Sale } from './domain/entities/sale.entity';
 import { SaleItem } from './domain/entities/sale-item.entity';
@@ -23,6 +24,6 @@ import { AppService } from './app.service';
     TypeOrmModule.forFeature([Sale, SaleItem]),
   ],
   controllers: [SaleController, AppController],
-  providers: [SaleService, SaleRepository, AppService],
+  providers: [SaleService, PdfReceiptService, SaleRepository, AppService],
 })
 export class AppModule {}
