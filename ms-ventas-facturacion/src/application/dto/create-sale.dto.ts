@@ -1,13 +1,13 @@
-import { IsUUID, IsString, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsArray, ValidateNested, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
 import { CreateSaleItemDto } from './create-sale-item.dto';
 import { SaleStatus } from '../../domain/entities/sale.entity';
 
 export class CreateSaleDto {
-  @IsUUID()
+  @IsString()
   branch_id: string;
 
-  @IsUUID()
+  @IsString()
   @IsOptional()
   customer_id?: string;
 

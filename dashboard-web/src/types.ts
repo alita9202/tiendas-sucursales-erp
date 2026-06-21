@@ -138,3 +138,64 @@ export interface GatewayPayment {
   company: string;
   branch: string;
 }
+
+// ─── Sales (ms-ventas-facturacion) ────────────────────────────────────────────
+
+export interface SaleItem {
+  id: string;
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
+
+export type SaleStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
+
+export interface Sale {
+  id: string;
+  branch_id: string;
+  customer_id: string | null;
+  receipt_number: string;
+  payment_method: string;
+  total_amount: number;
+  status: SaleStatus;
+  sale_date: string;
+  items: SaleItem[];
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreateSaleItemPayload {
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+}
+
+export interface CreateSalePayload {
+  branch_id: string;
+  customer_id?: string;
+  receipt_number: string;
+  payment_method: string;
+  items: CreateSaleItemPayload[];
+}
+
+export interface ReceiptItemDto {
+  product_id: string;
+  quantity: number;
+  unit_price: number;
+  subtotal: number;
+}
+
+export interface ReceiptResponse {
+  receipt_number: string;
+  sale_id: string;
+  branch_id: string;
+  customer_id: string;
+  payment_method: string;
+  sale_date: string;
+  items: ReceiptItemDto[];
+  subtotal: number;
+  tax_rate: number;
+  tax_amount: number;
+  total: number;
+}

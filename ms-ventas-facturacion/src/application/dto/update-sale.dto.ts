@@ -1,8 +1,8 @@
-import { IsUUID, IsString, IsOptional, IsEnum } from 'class-validator';
+import { IsString, IsOptional, IsEnum } from 'class-validator';
 import { SaleStatus } from '../../domain/entities/sale.entity';
 
 export class UpdateSaleDto {
-  @IsUUID()
+  @IsString()
   @IsOptional()
   customer_id?: string;
 

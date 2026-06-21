@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { SaleService } from '../../application/services/sale.service';
 import { CreateSaleDto } from '../../application/dto/create-sale.dto';
 import { UpdateSaleDto } from '../../application/dto/update-sale.dto';
+import { ReceiptResponseDto } from '../../application/dto/receipt-response.dto';
 
 @ApiTags('sales')
 @Controller('sales')
@@ -29,6 +30,13 @@ export class SaleController {
   @ApiResponse({ status: 200, description: 'Sale retrieved successfully' })
   async findById(@Param('id') id: string) {
     return await this.service.findById(id);
+  }
+
+  @Get(':id/receipt')
+  @ApiOperation({ summary: 'Get sale receipt with taxes' })
+  @ApiResponse({ status: 200, description: 'Receipt retrieved successfully', type: ReceiptResponseDto })
+  async getReceipt(@Param('id') id: string) {
+    return await this.service.getReceipt(id);
   }
 
   @Get('branch/:branchId')

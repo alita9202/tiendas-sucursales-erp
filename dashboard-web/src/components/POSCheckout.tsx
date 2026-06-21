@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import { CreditCard, ShoppingCart, UserPlus, Check, Award } from 'lucide-react';
+import { createSale, getReceipt } from '../services/sales';
+import type { CreateSalePayload, ReceiptResponse } from '../types';
 
 export default function POSCheckout() {
   const [cart, setCart] = useState<{ id: string; name: string; price: number; quantity: number }[]>([]);
@@ -7,19 +9,20 @@ export default function POSCheckout() {
   const [clientNit, setClientNit] = useState('1234567');
   
   const [branches, setBranches] = useState<any[]>([]);
-  const [branch, setBranch] = useState('HIPER-C'); // HIPERMAXI CENTRAL fallback
+  const [branch, setBranch] = useState('b0000000-0000-0000-0000-000000000001');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
   
   const [showReceipt, setShowReceipt] = useState(false);
+  const [receiptData, setReceiptData] = useState<ReceiptResponse | null>(null);
   const [products, setProducts] = useState([
-    { id: 'PROD-002', name: 'Leche Pil 980cc', price: 18.50, stock: 100 },
-    { id: 'PROD-003', name: 'Mayonesa Cris', price: 2.00, stock: 120 }
+    { id: 'a0000000-0000-0000-0000-000000000002', name: 'Leche Pil 980cc', price: 18.50, stock: 100 },
+    { id: 'a0000000-0000-0000-0000-000000000003', name: 'Mayonesa Cris', price: 2.00, stock: 120 }
   ]);
 
   useEffect(() => {
     Promise.all([
-      fetch('http://localhost:3000/api/branches').then(r => r.json()).catch(() => []),
-      fetch('http://localhost:3000/api/products').then(r => r.json()).catch(() => [])
+      fetch('/api/branches').then(r => r.json()).catch(() => []),
+      fetch('/api/products').then(r => r.json()).catch(() => [])
     ]).then(([bData, pData]) => {
       if (bData.length) {
         setBranches(bData);
@@ -30,7 +33,7 @@ export default function POSCheckout() {
           id: p.id,
           name: p.name,
           price: Number(p.price) || 0,
-          stock: 999 // Real stock comes from inventory, simplified for POS display
+          stock: 999
         })));
       }
     });
@@ -57,42 +60,41 @@ export default function POSCheckout() {
   const handleProcessSale = async () => {
     if (cart.length === 0) return;
     try {
-      const items = cart.map(item => ({
-        product_id: item.id,
-        quantity: item.quantity,
-        unit_price: item.price,
-        tax_rate: 0.13
-      }));
-      await fetch('http://localhost:3000/api/sales', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          branch_id: branch,
-          customer_id: 'CUST-001',
-          user_id: 'EMP-001',
-          items,
-          payment_method: paymentMethod
-        })
-      });
+      const receiptNumber = `FAC-${Date.now().toString(36).toUpperCase()}`;
+      const payload: CreateSalePayload = {
+        branch_id: branch,
+        customer_id: 'c0000000-0000-0000-0000-000000000001',
+        receipt_number: receiptNumber,
+        payment_method: paymentMethod,
+        items: cart.map(item => ({
+          product_id: item.id,
+          quantity: item.quantity,
+          unit_price: item.price,
+        })),
+      };
+      const sale = await createSale(payload);
+      const receipt = await getReceipt(sale.id);
+      setReceiptData(receipt);
+      setShowReceipt(true);
     } catch (e) {
       console.warn('Backend no disponible para ventas', e);
     }
-    setShowReceipt(true);
   };
 
   const closeReceipt = () => {
     setShowReceipt(false);
+    setReceiptData(null);
     setCart([]);
   };
 
   return (
     <div className="flex-1 flex flex-col bg-surface dark:bg-surface-dark overflow-hidden">
       
-      {/* TODO Sales Service: conectar POST /sales */}
-      <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 shrink-0 flex gap-3 items-start m-6 mb-0 rounded-r-lg">
-        <CreditCard className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
-        <p className="text-yellow-800 dark:text-yellow-300 font-medium text-sm">
-          Responsable: Sales Service. Estado actual: módulo base funcional para demostración. Pendiente del responsable: completar integración, validaciones y pruebas del módulo.
+      {/* Sales Service: integrado con ms-ventas-facturacion */}
+      <div className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 p-4 shrink-0 flex gap-3 items-start m-6 mb-0 rounded-r-lg">
+        <CreditCard className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+        <p className="text-green-800 dark:text-green-300 font-medium text-sm">
+          Integrado con Sales Service (ms-ventas-facturacion). POST /sales via proxy Vite → localhost:3003.
         </p>
       </div>
 
@@ -149,7 +151,7 @@ export default function POSCheckout() {
                     <option key={b.id} value={b.id}>{b.name}</option>
                   )) : (
                     <>
-                      <option value="HIPER-C">Sucursal Central (Mock)</option>
+                      <option value="b0000000-0000-0000-0000-000000000001">OXXO Prado (Mock)</option>
                     </>
                   )}
                 </select>
@@ -221,7 +223,7 @@ export default function POSCheckout() {
       </div>
 
       {/* Modal Comprobante */}
-      {showReceipt && (
+      {showReceipt && receiptData && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-surface-container-lowest rounded-xl max-w-sm w-full p-6 shadow-2xl">
             <div className="text-center mb-6">
@@ -229,21 +231,26 @@ export default function POSCheckout() {
                 <Check className="w-6 h-6" />
               </div>
               <h2 className="text-xl font-bold text-on-surface">Venta Exitosa</h2>
-              <p className="text-sm text-secondary">Comprobante #FAC-9921</p>
+              <p className="text-sm text-secondary">Comprobante {receiptData.receipt_number}</p>
             </div>
 
             <div className="bg-surface p-4 rounded-lg border border-outline-variant/10 text-sm mb-4 space-y-2">
               <div className="flex justify-between"><span className="text-secondary">Cliente:</span><span className="font-bold text-on-surface">{clientName}</span></div>
               <div className="flex justify-between"><span className="text-secondary">NIT/CI:</span><span className="font-bold text-on-surface">{clientNit}</span></div>
-              <div className="flex justify-between"><span className="text-secondary">Método:</span><span className="font-bold text-on-surface">{paymentMethod}</span></div>
-              <div className="flex justify-between border-t border-outline-variant/10 pt-2"><span className="text-secondary">Total Pagado:</span><span className="font-bold text-primary">Bs {total.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-secondary">Método:</span><span className="font-bold text-on-surface">{receiptData.payment_method}</span></div>
+              {receiptData.items.map((item, i) => (
+                <div key={i} className="flex justify-between text-xs"><span className="text-secondary">{item.quantity}x Prod. {item.product_id.slice(0,8)}</span><span className="text-on-surface">Bs {item.subtotal.toFixed(2)}</span></div>
+              ))}
+              <div className="flex justify-between border-t border-outline-variant/10 pt-2"><span className="text-secondary">Subtotal:</span><span className="font-bold text-on-surface">Bs {receiptData.subtotal.toFixed(2)}</span></div>
+              <div className="flex justify-between"><span className="text-secondary">IVA ({(receiptData.tax_rate * 100).toFixed(0)}%):</span><span className="text-on-surface">Bs {receiptData.tax_amount.toFixed(2)}</span></div>
+              <div className="flex justify-between border-t border-outline-variant/20 pt-2"><span className="text-secondary font-bold">Total Pagado:</span><span className="font-bold text-primary text-lg">Bs {receiptData.total.toFixed(2)}</span></div>
             </div>
 
             <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800 flex items-center gap-3 mb-6">
               <Award className="w-8 h-8 text-purple-500" />
               <div>
                 <p className="text-sm font-bold text-purple-900 dark:text-purple-300">Puntos Asignados</p>
-                <p className="text-xs text-purple-700 dark:text-purple-400">{clientName} ganó {Math.floor(total)} puntos</p>
+                <p className="text-xs text-purple-700 dark:text-purple-400">{clientName} ganó {Math.floor(receiptData.total)} puntos</p>
               </div>
             </div>
 
