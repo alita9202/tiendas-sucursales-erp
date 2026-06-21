@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, HttpException, HttpStatus } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Param, Body, HttpException, HttpStatus } from '@nestjs/common';
 import { Pool } from 'pg';
 
 const pool = new Pool({
@@ -15,6 +15,7 @@ const notifications: any[] = [];
 @Controller()
 export class AppController {
 
+  // --- COMPANIES ---
   @Get('api/companies')
   async getCompanies() {
     const result = await pool.query('SELECT * FROM companies');
@@ -23,14 +24,42 @@ export class AppController {
 
   @Post('api/companies')
   async createCompany(@Body() body: any) {
-    const { id, name, nit, address, phone, email } = body;
+    const { id, name, nit, status } = body;
     const result = await pool.query(
-      'INSERT INTO companies (id, name, nit, address, phone, email) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [id, name, nit, address, phone, email]
+      'INSERT INTO companies (id, name, nit, status) VALUES ($1, $2, $3, $4) RETURNING *',
+      [id, name, nit, status || 'active']
     );
     return result.rows[0];
   }
 
+  @Put('api/companies/:id')
+  async updateCompany(@Param('id') id: string, @Body() body: any) {
+    const { name, nit, status } = body;
+    const result = await pool.query(
+      'UPDATE companies SET name = $1, nit = $2, status = $3 WHERE id = $4 RETURNING *',
+      [name, nit, status, id]
+    );
+    return result.rows[0];
+  }
+
+  @Delete('api/companies/:id')
+  async deleteCompany(@Param('id') id: string) {
+    try {
+      const result = await pool.query('DELETE FROM companies WHERE id = $1 RETURNING *', [id]);
+      return { success: true, deleted: result.rows[0] };
+    } catch (e: any) {
+      // Si la base de datos bloquea el borrado por tener sucursales activas, lanzamos error
+      throw new HttpException('No se puede eliminar la empresa porque tiene sucursales asignadas.', HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Delete('api/branches/:id')
+  async deleteBranch(@Param('id') id: string) {
+    const result = await pool.query('DELETE FROM branches WHERE id = $1 RETURNING *', [id]);
+    return { success: true, deleted: result.rows[0] };
+  }
+  
+  // --- BRANCHES ---
   @Get('api/branches')
   async getBranches() {
     const result = await pool.query('SELECT * FROM branches');
@@ -39,14 +68,25 @@ export class AppController {
 
   @Post('api/branches')
   async createBranch(@Body() body: any) {
-    const { id, name, company_id, address, phone, manager } = body;
+    const { id, company_id, name, city, address, status } = body;
     const result = await pool.query(
-      'INSERT INTO branches (id, name, company_id, address, phone, manager) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-      [id, name, company_id, address, phone, manager]
+      'INSERT INTO branches (id, company_id, name, city, address, status) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+      [id, company_id, name, city, address, status || 'active']
     );
     return result.rows[0];
   }
 
+  @Put('api/branches/:id')
+  async updateBranch(@Param('id') id: string, @Body() body: any) {
+    const { company_id, name, city, address, status } = body;
+    const result = await pool.query(
+      'UPDATE branches SET company_id = $1, name = $2, city = $3, address = $4, status = $5 WHERE id = $6 RETURNING *',
+      [company_id, name, city, address, status, id]
+    );
+    return result.rows[0];
+  }
+
+  // --- PRODUCTS ---
   @Get('api/products')
   async getProducts() {
     const result = await pool.query('SELECT * FROM products');
@@ -63,6 +103,7 @@ export class AppController {
     return result.rows[0];
   }
 
+  // --- INVENTORY ---
   @Get('api/inventory')
   async getInventory() {
     const result = await pool.query('SELECT * FROM v_inventory_by_branch');
@@ -86,32 +127,6 @@ export class AppController {
     return result.rows[0];
   }
 
-  @Post('api/sales')
-  async createSale(@Body() body: any) {
-    // Expected body: { branch_id, customer_id, user_id, items: [{product_id, quantity, unit_price, tax_rate}] }
-    // Using simple logic or db functions
-    const { branch_id, customer_id, user_id, items, payment_method } = body;
-    
-    // In MVP, we have a function fn_register_sale(p_branch_id, p_customer_id, p_user_id, p_items jsonb)
-    const itemsJson = JSON.stringify(items);
-    try {
-      const result = await pool.query(
-        'SELECT * FROM fn_register_sale($1, $2, $3, $4::jsonb)',
-        [branch_id, customer_id || 'CUST-001', user_id || 'EMP-001', itemsJson]
-      );
-      notifications.unshift({
-        id: Date.now().toString(),
-        type: 'SaleCompleted',
-        title: 'Venta Completada',
-        message: `Venta registrada en ${branch_id}`,
-        createdAt: new Date().toISOString(),
-      });
-      return { success: true, sale: result.rows[0] };
-    } catch (e) {
-      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-    }
-  }
-
   @Post('api/inventory/transfer')
   async transferStock(@Body() body: any) {
     const { product_id, source_branch, dest_branch, quantity, user_id } = body;
@@ -128,11 +143,35 @@ export class AppController {
         createdAt: new Date().toISOString(),
       });
       return { success: true, transfer: result.rows[0] };
-    } catch (e) {
+    } catch (e: any) {
       throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 
+  // --- SALES ---
+  @Post('api/sales')
+  async createSale(@Body() body: any) {
+    const { branch_id, customer_id, user_id, items, payment_method } = body;
+    const itemsJson = JSON.stringify(items);
+    try {
+      const result = await pool.query(
+        'SELECT * FROM fn_register_sale($1, $2, $3, $4::jsonb)',
+        [branch_id, customer_id || 'CUST-001', user_id || 'EMP-001', itemsJson]
+      );
+      notifications.unshift({
+        id: Date.now().toString(),
+        type: 'SaleCompleted',
+        title: 'Venta Completada',
+        message: `Venta registrada en ${branch_id}`,
+        createdAt: new Date().toISOString(),
+      });
+      return { success: true, sale: result.rows[0] };
+    } catch (e: any) {
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  // --- REPORTS & NOTIFICATIONS ---
   @Get('api/reports/stock')
   async getStockReport() {
     const result = await pool.query('SELECT * FROM v_inventory_consolidated');
