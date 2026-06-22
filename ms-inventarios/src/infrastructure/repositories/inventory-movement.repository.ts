@@ -1,6 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { Repository, Between } from 'typeorm';
 import { InventoryMovement } from '../../domain/entities/inventory-movement.entity';
 
 @Injectable()
@@ -9,6 +9,31 @@ export class InventoryMovementRepository {
     @InjectRepository(InventoryMovement)
     private readonly repository: Repository<InventoryMovement>,
   ) {}
+
+  // =========================================================================
+  // NUEVO MÉTODO: Buscar movimientos de tipo venta ingresados el día de hoy
+  // =========================================================================
+  async findTodaySales(): Promise<InventoryMovement[]> {
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    return await this.repository.find({
+      where: {
+        // Usamos 'movement_type' en lugar de 'type' para respetar su estructura
+        movement_type: 'SALE' as any, 
+        // Usamos 'movement_date' en lugar de 'created_at' según sus campos
+        movement_date: Between(startOfDay, endOfDay)
+      },
+      order: { movement_date: 'DESC' }
+    });
+  }
+
+  // =========================================================================
+  // MÉTODOS ORIGINALES DE TU EQUIPO (Mantenidos intactos para no romper nada)
+  // =========================================================================
 
   async create(movement: Partial<InventoryMovement>): Promise<InventoryMovement> {
     const newMovement = this.repository.create(movement);
