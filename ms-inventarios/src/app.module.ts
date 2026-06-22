@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { InventoryNotificationService } from './application/services/inventory-notification.service'; // <-- IMPORTANTE
 import { InventoryReportController } from './presentation/controllers/inventory-report.controller';
 import { InventoryReportService } from './application/services/inventory-report.service';
 
@@ -29,6 +30,7 @@ import { InventoryStock } from './domain/entities/inventory-stock.entity';
       useFactory: getTypeOrmConfig,
       inject: [ConfigService],
     }),
+    
     TypeOrmModule.forFeature([
       InventoryTransfer,
       InventoryStock,
@@ -53,6 +55,7 @@ import { InventoryStock } from './domain/entities/inventory-stock.entity';
     InventoryMovementRepository,
     InventoryTransferRepository,
     InventoryReportService,
+    InventoryNotificationService,
   ],
 })
 export class AppModule {}
