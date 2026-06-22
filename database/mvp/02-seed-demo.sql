@@ -31,7 +31,7 @@ INSERT INTO products (id, code, name, category, brand, unit, sale_price) VALUES
 ('a0000000-0000-0000-0000-000000000003', 'PROD-003', 'Mayonesa Cris', 'Salsas', 'Cris', 'Sachet', 2.00),
 ('a0000000-0000-0000-0000-000000000004', 'PROD-004', 'Arroz', 'Abarrotes', 'Grano de Oro', 'Kilo', 8.00),
 ('a0000000-0000-0000-0000-000000000005', 'PROD-005', 'Aceite', 'Abarrotes', 'Fino', 'Litro', 15.00),
-('a0000000-0000-0000-0000-000000000006', 'PROD-006', 'AzAºcar', 'Abarrotes', 'Guabira', 'Kilo', 6.00)
+('a0000000-0000-0000-0000-000000000006', 'PROD-006', 'Azucar', 'Abarrotes', 'Guabira', 'Kilo', 6.00)
 ON CONFLICT (id) DO NOTHING;
 
 -- Customers
