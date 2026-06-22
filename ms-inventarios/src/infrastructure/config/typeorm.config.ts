@@ -16,7 +16,7 @@ export const getTypeOrmConfig = (configService: ConfigService): TypeOrmModuleOpt
     type: 'postgres',
     url: `postgres://${username}:${password}@${host}:${port}/${database}?sslmode=disable`,
     entities: [InventoryStock, InventoryMovement, InventoryTransfer, InventoryTransferItem],
-    synchronize: true,
+    synchronize: false,
     logging: configService.get<string>('NODE_ENV') === 'development',
     extra: {
       connectionTimeoutMillis: 10000,
