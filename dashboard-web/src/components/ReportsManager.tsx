@@ -1,41 +1,78 @@
 import { useState, useEffect } from 'react';
-import { BarChart2, Download, RefreshCw, FileText } from 'lucide-react';
+import { BarChart2, Download, RefreshCw, FileText, FileSpreadsheet } from 'lucide-react';
+import * as XLSX from 'xlsx';
+
+type StockRow = {
+  company_name: string;
+  branch_name: string;
+  city: string;
+  product_code: string;
+  product_name: string;
+  total_stock: number;
+  min_stock: number;
+  stock_status: string;
+};
+
+type SalesRow = {
+  sale_date?: string;
+  product_name?: string;
+  quantity?: number;
+  unit_price?: number;
+  total_amount?: number;
+  payment_method?: string;
+  branch_name?: string;
+};
 
 export default function ReportsManager() {
-  const [stockReport, setStockReport] = useState([
-    { name: 'IC Norte / Melchor Perez', qty: 85, color: 'bg-blue-500' },
-    { name: 'OXXO Bolivia / Sucursal El Alto', qty: 50, color: 'bg-green-500' },
-    { name: 'OXXO Bolivia / Sucursal Prado', qty: 48, color: 'bg-yellow-500' },
-    { name: 'Hipermaxi / Sucursal 1', qty: 18, color: 'bg-red-500' },
-  ]);
-  const [salesDay, setSalesDay] = useState(null);
-
-  const colors = ['bg-blue-500', 'bg-green-500', 'bg-yellow-500', 'bg-red-500', 'bg-purple-500'];
+  const [stockReport, setStockReport] = useState<StockRow[]>([]);
+  const [salesReport, setSalesReport] = useState<SalesRow[]>([]);
+  const [loading, setLoading] = useState(false);
 
   const fetchReports = async () => {
+    setLoading(true);
+
     try {
       const [sRes, sdRes] = await Promise.all([
-        fetch('http://localhost:3000/api/reports/stock'),
-        fetch('http://localhost:3000/api/reports/sales-day')
+        fetch('http://localhost:3000/api/inventory'),
+        fetch('http://localhost:3000/api/reports/sales-day'),
       ]);
+
       if (sRes.ok) {
         const sData = await sRes.json();
-        if (sData.length > 0) {
-          setStockReport(sData.map((d: any, i: number) => ({
-            name: `${d.company_name} / ${d.branch_name}`,
-            qty: Number(d.total_stock) || 0,
-            color: colors[i % colors.length]
-          })));
-        }
+
+        const mappedStock: StockRow[] = sData.map((row: any) => ({
+          company_name: row.company_name || 'Sin empresa',
+          branch_name: row.branch_name || 'Sin sucursal',
+          city: row.city || '',
+          product_code: row.product_code || 'N/A',
+          product_name: row.product_name || 'Sin producto',
+          total_stock: Number(row.quantity) || 0,
+          min_stock: Number(row.min_stock) || 0,
+          stock_status: row.stock_status || 'IN_STOCK',
+        }));
+
+        setStockReport(mappedStock);
       }
+
       if (sdRes.ok) {
         const sdData = await sdRes.json();
-        if (sdData.length > 0) {
-          setSalesDay(sdData[0]); // since view groups by day
-        }
+
+        const mappedSales: SalesRow[] = sdData.map((row: any) => ({
+          sale_date: row.sale_date || row.date || row.fecha || 'Sin fecha',
+          product_name: row.product_name || row.product || 'Producto',
+          quantity: Number(row.quantity ?? row.qty ?? 0),
+          unit_price: Number(row.unit_price ?? row.price ?? 0),
+          total_amount: Number(row.total_amount ?? row.total ?? row.amount ?? 0),
+          payment_method: row.payment_method || row.metodo_pago || 'N/A',
+          branch_name: row.branch_name || row.branch || 'N/A',
+        }));
+
+        setSalesReport(mappedSales);
       }
     } catch (e) {
-      console.warn('Usando datos mock de reportes', e);
+      console.warn('Error cargando reportes', e);
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -43,134 +80,324 @@ export default function ReportsManager() {
     fetchReports();
   }, []);
 
-  const totalStock = stockReport.reduce((acc, it) => acc + it.qty, 0);
+  const totalStock = stockReport.reduce((acc, it) => acc + Number(it.total_stock || 0), 0);
+  const totalSales = salesReport.reduce((acc, it) => acc + Number(it.total_amount || 0), 0);
+  const totalSalesQty = salesReport.reduce((acc, it) => acc + Number(it.quantity || 0), 0);
+
+  const exportStockExcel = () => {
+    const rows = stockReport.map(row => ({
+      Empresa: row.company_name,
+      Sucursal: row.branch_name,
+      Ciudad: row.city,
+      Codigo: row.product_code,
+      Producto: row.product_name,
+      Stock: row.total_stock,
+      Minimo: row.min_stock,
+      Estado: row.stock_status,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Stock Consolidado');
+    XLSX.writeFile(workbook, 'reporte_stock_consolidado.xlsx');
+  };
+
+  const exportSalesExcel = () => {
+    const rows = salesReport.map(row => ({
+      Fecha: row.sale_date,
+      Sucursal: row.branch_name,
+      Producto: row.product_name,
+      Cantidad: row.quantity,
+      Precio: row.unit_price,
+      Total: row.total_amount,
+      MetodoPago: row.payment_method,
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Ventas del Dia');
+    XLSX.writeFile(workbook, 'reporte_ventas_dia.xlsx');
+  };
+
+  const exportAllExcel = () => {
+    const stockRows = stockReport.map(row => ({
+      Empresa: row.company_name,
+      Sucursal: row.branch_name,
+      Ciudad: row.city,
+      Codigo: row.product_code,
+      Producto: row.product_name,
+      Stock: row.total_stock,
+      Minimo: row.min_stock,
+      Estado: row.stock_status,
+    }));
+
+    const salesRows = salesReport.map(row => ({
+      Fecha: row.sale_date,
+      Sucursal: row.branch_name,
+      Producto: row.product_name,
+      Cantidad: row.quantity,
+      Precio: row.unit_price,
+      Total: row.total_amount,
+      MetodoPago: row.payment_method,
+    }));
+
+    const workbook = XLSX.utils.book_new();
+
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(stockRows), 'Stock');
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(salesRows), 'Ventas');
+
+    XLSX.writeFile(workbook, 'reportes_erp.xlsx');
+  };
+
+  const exportCsv = () => {
+    const headers = 'tipo;empresa;sucursal;ciudad;codigo_producto;producto;cantidad;precio;total;estado\n';
+
+    const stockRows = stockReport.map(row => [
+      'STOCK',
+      row.company_name,
+      row.branch_name,
+      row.city,
+      row.product_code,
+      row.product_name,
+      row.total_stock,
+      '',
+      '',
+      row.stock_status,
+    ].join(';'));
+
+    const salesRows = salesReport.map(row => [
+      'VENTA',
+      '',
+      row.branch_name,
+      '',
+      '',
+      row.product_name,
+      row.quantity,
+      row.unit_price,
+      row.total_amount,
+      row.payment_method,
+    ].join(';'));
+
+    const blob = new Blob([headers + [...stockRows, ...salesRows].join('\n')], {
+      type: 'text/csv;charset=utf-8;',
+    });
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = 'reportes_erp.csv';
+    link.click();
+
+    URL.revokeObjectURL(url);
+  };
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-surface dark:bg-surface-dark">
-      <div className="max-w-6xl mx-auto space-y-6">
-        
+      <div className="max-w-7xl mx-auto space-y-6">
+
         <header className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-on-surface">Reportes</h1>
-            <p className="text-secondary mt-1">Análisis consolidado de inventario y ventas.</p>
+            <p className="text-secondary mt-1">
+              Reporte consolidado de stock, ventas del día y exportación para defensa.
+            </p>
           </div>
+
           <div className="flex gap-2">
-            <button onClick={fetchReports} className="flex items-center gap-2 bg-surface text-secondary border border-outline-variant/30 px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface-container transition-colors">
-              <RefreshCw className="w-4 h-4" />
+            <button
+              onClick={fetchReports}
+              className="flex items-center gap-2 bg-surface text-secondary border border-outline-variant/30 px-3 py-2 rounded-lg text-sm font-medium hover:bg-surface-container transition-colors"
+            >
+              <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               Actualizar
             </button>
-            <button className="flex items-center gap-2 bg-surface text-red-600 border border-red-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-50 transition-colors">
-              <FileText className="w-4 h-4" />
-              Exportar PDF
-            </button>
-            <button className="flex items-center gap-2 bg-surface text-green-600 border border-green-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors">
+
+            <button
+              onClick={exportCsv}
+              className="flex items-center gap-2 bg-surface text-primary border border-primary/20 px-3 py-2 rounded-lg text-sm font-medium hover:bg-primary/5 transition-colors"
+            >
               <Download className="w-4 h-4" />
-              Exportar Excel
+              CSV
+            </button>
+
+            <button
+              onClick={exportAllExcel}
+              className="flex items-center gap-2 bg-surface text-green-600 border border-green-200 px-3 py-2 rounded-lg text-sm font-medium hover:bg-green-50 transition-colors"
+            >
+              <FileSpreadsheet className="w-4 h-4" />
+              Excel
             </button>
           </div>
         </header>
 
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border-l-4 border-yellow-500 p-4 rounded-r-lg flex gap-3 items-start">
-          <FileText className="w-5 h-5 text-yellow-600 mt-0.5 shrink-0" />
-          <p className="text-yellow-800 dark:text-yellow-300 font-medium text-sm">
-            Responsable: Reporting Service. Estado actual: módulo base funcional para demostración. Pendiente del responsable: completar integración, validaciones y pruebas del módulo.
+        <div className="bg-green-50 dark:bg-green-900/20 border-l-4 border-green-500 p-4 rounded-r-lg flex gap-3 items-start">
+          <FileText className="w-5 h-5 text-green-600 mt-0.5 shrink-0" />
+          <p className="text-green-800 dark:text-green-300 font-medium text-sm">
+            Reporting Service: consume datos reales de /api/inventory y /api/reports/sales-day para mostrar stock por sucursal y ventas del día.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          
-          {/* Reporte 1: Stock consolidado */}
-          <div className="bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col h-full overflow-hidden">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+          <div className="bg-surface-container rounded-xl border border-outline-variant/20 p-4">
+            <p className="text-sm text-secondary">Stock Total</p>
+            <p className="text-2xl font-bold text-on-surface">{totalStock}</p>
+          </div>
+
+          <div className="bg-surface-container rounded-xl border border-outline-variant/20 p-4">
+            <p className="text-sm text-secondary">Registros Stock</p>
+            <p className="text-2xl font-bold text-primary">{stockReport.length}</p>
+          </div>
+
+          <div className="bg-surface-container rounded-xl border border-outline-variant/20 p-4">
+            <p className="text-sm text-secondary">Unidades Vendidas</p>
+            <p className="text-2xl font-bold text-green-600">{totalSalesQty}</p>
+          </div>
+
+          <div className="bg-surface-container rounded-xl border border-outline-variant/20 p-4">
+            <p className="text-sm text-secondary">Ingresos del Día</p>
+            <p className="text-2xl font-bold text-green-600">Bs {totalSales.toFixed(2)}</p>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+
+          <div className="bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-high/30 flex justify-between items-center">
               <h2 className="font-bold text-lg text-on-surface flex items-center gap-2">
                 <BarChart2 className="w-5 h-5 text-primary" />
-                Stock Consolidado por Producto
+                Stock Consolidado
               </h2>
-              <select className="text-sm bg-surface border border-outline-variant/30 rounded px-2 py-1">
-                <option>Filtrar por Todos</option>
-              </select>
+
+              <button
+                onClick={exportStockExcel}
+                className="text-xs bg-surface text-green-600 border border-green-200 px-3 py-1.5 rounded-lg font-bold hover:bg-green-50"
+              >
+                Exportar Stock
+              </button>
             </div>
-            
-            <div className="p-6 flex-1 flex flex-col">
+
+            <div className="p-6">
               <div className="mb-6 flex justify-between items-end">
                 <div>
                   <p className="text-sm text-secondary">Total Consolidado</p>
-                  <p className="text-3xl font-bold text-on-surface">{totalStock} <span className="text-sm font-normal text-secondary">unidades</span></p>
+                  <p className="text-3xl font-bold text-on-surface">
+                    {totalStock}
+                    <span className="text-sm font-normal text-secondary"> unidades</span>
+                  </p>
                 </div>
               </div>
 
-              <div className="space-y-4 flex-1">
-                {stockReport.map((item, i) => (
-                  <div key={i} className="space-y-1">
-                    <div className="flex justify-between text-sm">
-                      <span className="font-medium text-on-surface">{item.name}</span>
-                      <span className="font-bold">{item.qty}</span>
-                    </div>
-                    <div className="h-2 w-full bg-surface-container-highest rounded-full overflow-hidden">
-                      <div className={`h-full ${item.color}`} style={{ width: `${Math.min((item.qty / Math.max(totalStock, 1)) * 100, 100)}%` }}></div>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto border border-outline-variant/20 rounded-lg">
+                <table className="w-full text-left border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-surface-container-high/50 border-b border-outline-variant/20 text-secondary">
+                      <th className="p-3">Producto</th>
+                      <th className="p-3">Empresa</th>
+                      <th className="p-3">Sucursal</th>
+                      <th className="p-3 text-right">Stock</th>
+                      <th className="p-3 text-center">Estado</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-outline-variant/10">
+                    {stockReport.length > 0 ? stockReport.map((item, i) => (
+                      <tr key={i} className="hover:bg-surface-container-high/30">
+                        <td className="p-3 font-medium text-on-surface">
+                          {item.product_name}
+                          <div className="text-xs text-secondary font-mono">{item.product_code}</div>
+                        </td>
+                        <td className="p-3">{item.company_name}</td>
+                        <td className="p-3 text-secondary">
+                          {item.branch_name}
+                          <div className="text-xs">{item.city}</div>
+                        </td>
+                        <td className="p-3 text-right font-bold">{item.total_stock}</td>
+                        <td className="p-3 text-center">
+                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
+                            item.stock_status === 'OUT_OF_STOCK'
+                              ? 'bg-red-100 text-red-700'
+                              : item.stock_status === 'LOW_STOCK'
+                              ? 'bg-orange-100 text-orange-700'
+                              : 'bg-green-100 text-green-700'
+                          }`}>
+                            {item.stock_status}
+                          </span>
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center text-secondary">
+                          No hay datos de stock.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
 
-          {/* Reporte 2: Ventas del día */}
-          <div className="bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col h-full overflow-hidden">
+          <div className="bg-surface-container rounded-xl border border-outline-variant/20 flex flex-col overflow-hidden">
             <div className="px-6 py-4 border-b border-outline-variant/10 bg-surface-container-high/30 flex justify-between items-center">
               <h2 className="font-bold text-lg text-on-surface flex items-center gap-2">
                 <BarChart2 className="w-5 h-5 text-green-500" />
                 Ventas del Día
               </h2>
-              <span className="text-sm font-medium bg-surface px-2 py-1 rounded border border-outline-variant/20">
-                2026-06-17
-              </span>
+
+              <button
+                onClick={exportSalesExcel}
+                className="text-xs bg-surface text-green-600 border border-green-200 px-3 py-1.5 rounded-lg font-bold hover:bg-green-50"
+              >
+                Exportar Ventas
+              </button>
             </div>
-            
-            <div className="p-6 flex-1 flex flex-col">
+
+            <div className="p-6">
               <div className="grid grid-cols-2 gap-4 mb-6">
                 <div className="bg-surface p-4 rounded-lg border border-outline-variant/10">
                   <p className="text-sm text-secondary mb-1">Total Ingresos</p>
-                  <p className="text-2xl font-bold text-green-600">Bs 495.50</p>
+                  <p className="text-2xl font-bold text-green-600">Bs {totalSales.toFixed(2)}</p>
                 </div>
+
                 <div className="bg-surface p-4 rounded-lg border border-outline-variant/10">
-                  <p className="text-sm text-secondary mb-1">Métodos de Pago</p>
-                  <div className="flex gap-2 text-sm font-medium">
-                    <span className="text-blue-600">Efectivo: 60%</span>
-                    <span className="text-purple-600">Tarjeta: 40%</span>
-                  </div>
+                  <p className="text-sm text-secondary mb-1">Unidades Vendidas</p>
+                  <p className="text-2xl font-bold text-on-surface">{totalSalesQty}</p>
                 </div>
               </div>
 
-              <div className="flex-1 border border-outline-variant/20 rounded-lg overflow-hidden">
+              <div className="overflow-x-auto border border-outline-variant/20 rounded-lg">
                 <table className="w-full text-left text-sm">
                   <thead className="bg-surface-container-high/50 border-b border-outline-variant/20 text-secondary">
                     <tr>
+                      <th className="p-3">Fecha</th>
                       <th className="p-3">Producto</th>
                       <th className="p-3 text-right">Cant.</th>
                       <th className="p-3 text-right">Precio</th>
                       <th className="p-3 text-right">Total</th>
                     </tr>
                   </thead>
+
                   <tbody className="divide-y divide-outline-variant/10">
-                    <tr className="hover:bg-surface-container/50">
-                      <td className="p-3 font-medium">Leche Pil 980cc</td>
-                      <td className="p-3 text-right">3</td>
-                      <td className="p-3 text-right">Bs 18.50</td>
-                      <td className="p-3 text-right font-bold">Bs 55.50</td>
-                    </tr>
-                    <tr className="hover:bg-surface-container/50">
-                      <td className="p-3 font-medium">Mayonesa Cris</td>
-                      <td className="p-3 text-right">120</td>
-                      <td className="p-3 text-right">Bs 2.00</td>
-                      <td className="p-3 text-right font-bold">Bs 240.00</td>
-                    </tr>
-                    <tr className="hover:bg-surface-container/50">
-                      <td className="p-3 font-medium text-secondary italic">Otros productos...</td>
-                      <td className="p-3 text-right">-</td>
-                      <td className="p-3 text-right">-</td>
-                      <td className="p-3 text-right font-bold text-secondary">Bs 200.00</td>
-                    </tr>
+                    {salesReport.length > 0 ? salesReport.map((sale, i) => (
+                      <tr key={i} className="hover:bg-surface-container/50">
+                        <td className="p-3 text-secondary">{sale.sale_date}</td>
+                        <td className="p-3 font-medium">{sale.product_name}</td>
+                        <td className="p-3 text-right">{sale.quantity}</td>
+                        <td className="p-3 text-right">Bs {Number(sale.unit_price || 0).toFixed(2)}</td>
+                        <td className="p-3 text-right font-bold">
+                          Bs {Number(sale.total_amount || 0).toFixed(2)}
+                        </td>
+                      </tr>
+                    )) : (
+                      <tr>
+                        <td colSpan={5} className="p-6 text-center text-secondary">
+                          No hay ventas registradas para el día.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
