@@ -1,9 +1,119 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 import { CreditCard, ShoppingCart, UserPlus, Check, Award, ListOrdered, ArrowLeft } from 'lucide-react';
 import { createSale, getReceipt, getSales } from '../services/sales';
 import type { CreateSalePayload, ReceiptResponse, Sale } from '../types';
 
 export default function POSCheckout() {
+  const receiptRef = useRef<HTMLDivElement | null>(null);
+
+  const handleDownloadPdf = () => {
+    if (!receiptData) {
+      alert("No hay comprobante para descargar.");
+      return;
+    }
+
+    const doc = new jsPDF({
+      orientation: "portrait",
+      unit: "mm",
+      format: "a4",
+    });
+
+    const pageWidth = doc.internal.pageSize.getWidth();
+
+    const receiptNumber = receiptData.receipt_number || "SIN-RECIBO";
+    const customerName = receiptData.customer_name || "Cliente";
+    const customerDocument = receiptData.customer_nit || "";
+    const paymentMethod = receiptData.payment_method || "Efectivo";
+    
+    // We can find the branchName from branches array if needed, or use a default.
+    const branchName = branches.find((b: any) => b.id === branch)?.name || "Sucursal";
+    const total = Number(receiptData.total || 0);
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(16);
+    doc.text("Supermercado Doña Serafina", pageWidth / 2, 18, { align: "center" });
+
+    doc.setFontSize(11);
+    doc.text("COMPROBANTE DE VENTA", pageWidth / 2, 26, { align: "center" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text(`N° ${receiptNumber}`, pageWidth / 2, 34, { align: "center" });
+    doc.text(`Fecha: ${new Date().toLocaleString()}`, pageWidth / 2, 40, { align: "center" });
+    doc.text(`Sucursal: ${branchName}`, pageWidth / 2, 46, { align: "center" });
+
+    doc.line(25, 52, pageWidth - 25, 52);
+
+    doc.text(`Cliente: ${customerName}`, 25, 62);
+    doc.text(`NIT/CI: ${customerDocument}`, 25, 69);
+    doc.text(`Método: ${paymentMethod}`, 25, 76);
+
+    const items = Array.isArray(receiptData.items) ? receiptData.items : cart;
+
+    const tableRows = items.map((item: any) => {
+      const quantity = Number(item.quantity || 0);
+      const name = item.product_name || item.name || "Producto";
+      const price = Number(item.unit_price ?? item.price ?? 0);
+      const subtotal = Number(item.subtotal ?? quantity * price);
+
+      return [
+        String(quantity),
+        name,
+        `Bs ${price.toFixed(2)}`,
+        `Bs ${subtotal.toFixed(2)}`,
+      ];
+    });
+
+    autoTable(doc, {
+      startY: 84,
+      head: [["Cant.", "Producto", "Precio", "Subtotal"]],
+      body: tableRows,
+      theme: "grid",
+      styles: {
+        fontSize: 9,
+        cellPadding: 2,
+      },
+      headStyles: {
+        fillColor: [30, 64, 175],
+        textColor: 255,
+      },
+    });
+
+    const finalY = (doc as any).lastAutoTable?.finalY || 100;
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(12);
+    doc.text("Total Pagado:", 25, finalY + 14);
+    doc.text(`Bs ${total.toFixed(2)}`, pageWidth - 25, finalY + 14, { align: "right" });
+
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10);
+    doc.text("Gracias por su compra", pageWidth / 2, finalY + 28, { align: "center" });
+
+    doc.save(`comprobante-${receiptNumber}.pdf`);
+  };
+  const formatMoney = (value: any) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+  };
+
+  const normalizeReceipt = (receipt: any, saleData: any = {}, cartItems: any[] = [], clientName: string, clientNit: string, paymentMethod: string, cartTotal: number) => {
+    return {
+      id: receipt?.id || saleData?.id || "",
+      receipt_number: receipt?.receipt_number || saleData?.receipt_number || "Sin recibo",
+      customer_name: receipt?.customer_name || saleData?.customer_name || clientName || "Cliente",
+      customer_nit: receipt?.customer_document || saleData?.customer_document || clientNit || "",
+      payment_method: receipt?.payment_method || saleData?.payment_method || paymentMethod || "Efectivo",
+      total: Number(receipt?.total ?? receipt?.total_amount ?? saleData?.total ?? saleData?.total_amount ?? cartTotal ?? 0),
+      items: Array.isArray(receipt?.items) && receipt.items.length > 0 ? receipt.items : cartItems.map(item => ({
+        name: item.name,
+        quantity: item.quantity,
+        subtotal: item.price * item.quantity
+      }))
+    };
+  };
   const [cart, setCart] = useState<{ id: string; name: string; price: number; quantity: number }[]>([]);
   const [clientName, setClientName] = useState('Juanito Perez');
   const [clientNit, setClientNit] = useState('1234567');
@@ -17,58 +127,105 @@ export default function POSCheckout() {
   const [view, setView] = useState<'pos' | 'list'>('pos');
   const [salesList, setSalesList] = useState<Sale[]>([]);
   const [products, setProducts] = useState([
-    { id: 'a0000000-0000-0000-0000-000000000002', name: 'Leche Pil 980cc', price: 18.50, stock: 100 },
-    { id: 'a0000000-0000-0000-0000-000000000003', name: 'Mayonesa Cris', price: 2.00, stock: 120 }
+    { id: 'a0000000-0000-0000-0000-000000000002', code: 'PROD-002', name: 'Leche Pil 980cc', price: 18.50, stock: 100 },
+    { id: 'a0000000-0000-0000-0000-000000000003', code: 'PROD-003', name: 'Mayonesa Cris', price: 2.00, stock: 120 }
   ]);
 
   useEffect(() => {
-    Promise.all([
-      fetch('/api/branches').then(r => r.json()).catch(() => []),
-      fetch('/api/products').then(r => r.json()).catch(() => [])
-    ]).then(([bData, pData]) => {
-      if (bData.length) {
-        setBranches(bData);
-        setBranch(bData[0].id);
-      }
-      if (pData.length) {
-        setProducts(pData.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          price: Number(p.price) || 0,
-          stock: 999
-        })));
-      }
-    });
+    fetch('/api/branches')
+      .then(r => r.json())
+      .then(bData => {
+        if (bData.length) {
+          setBranches(bData);
+          // Set initial branch
+          if (!branch || branch === 'b0000000-0000-0000-0000-000000000001') {
+             setBranch(bData[0].id);
+          }
+        }
+      })
+      .catch(() => []);
   }, []);
 
-  const addToCart = (prod: any) => {
-    setCart(prev => {
-      const exists = prev.find(p => p.id === prod.id);
-      if (exists) {
-        return prev.map(p => p.id === prod.id ? { ...p, quantity: p.quantity + 1 } : p);
+  useEffect(() => {
+    if (!branch) return;
+    
+    // Warn and clear cart if changing branch
+    if (cart.length > 0) {
+      if (!window.confirm('Cambiar de sucursal vaciará su carrito. ¿Desea continuar?')) {
+        return; // we can't easily revert the select here without tracking previous branch, so we just clear cart
       }
-      return [...prev, { ...prod, quantity: 1 }];
+      setCart([]);
+    }
+
+    fetch(`/api/products/available?branch_id=${branch}`)
+      .then(r => r.json())
+      .then(pData => {
+        if (Array.isArray(pData)) {
+          setProducts(pData);
+        } else {
+          setProducts([]);
+        }
+      })
+      .catch(() => setProducts([]));
+  }, [branch]);
+
+  const addToCart = (prod: any) => {
+    if (!branch) {
+      alert('Seleccione una sucursal primero.');
+      return;
+    }
+    if (prod.stock <= 0) {
+      alert('Producto agotado en esta sucursal.');
+      return;
+    }
+
+    setCart(prev => {
+      const exists = prev.find(p => p.id === prod.product_id);
+      if (exists) {
+        if (exists.quantity >= prod.stock) {
+          alert('No hay suficiente stock disponible.');
+          return prev;
+        }
+        return prev.map(p => p.id === prod.product_id ? { ...p, quantity: p.quantity + 1 } : p);
+      }
+      return [...prev, { id: prod.product_id, name: prod.name, price: Number(prod.price), quantity: 1, stock: prod.stock }];
     });
   };
 
-  const addDemoUnits = () => {
-    const prod = products[0];
-    setCart([{ id: prod.id, name: prod.name, price: prod.price, quantity: 2 }]);
+  const updateQuantity = (id: string, delta: number) => {
+    setCart(prev => {
+      return prev.map(p => {
+        if (p.id === id) {
+          const newQty = p.quantity + delta;
+          if (newQty > p.stock) {
+            alert('No hay suficiente stock disponible.');
+            return p;
+          }
+          if (newQty <= 0) {
+            return null; // Will be filtered out
+          }
+          return { ...p, quantity: newQty };
+        }
+        return p;
+      }).filter(Boolean) as typeof cart;
+    });
+  };
+
+  const removeFromCart = (id: string) => {
+    setCart(prev => prev.filter(p => p.id !== id));
   };
 
   const subtotal = cart.reduce((acc, item) => acc + (item.price * item.quantity), 0);
-  const total = subtotal; // Simplicado sin IVA separado para la demo
+  const total = subtotal; // Simplificado sin IVA separado
 
   const handleProcessSale = async () => {
     if (cart.length === 0) return;
     try {
-      const receiptNumber = `FAC-${Date.now().toString(36).toUpperCase()}`;
-      const payload: CreateSalePayload = {
+
+      const payload = {
         branch_id: branch,
-        customer_id: 'c0000000-0000-0000-0000-000000000001',
         customer_name: clientName,
-        customer_nit: clientNit,
-        receipt_number: receiptNumber,
+        customer_document: clientNit,
         payment_method: paymentMethod,
         items: cart.map(item => ({
           product_id: item.id,
@@ -76,19 +233,56 @@ export default function POSCheckout() {
           unit_price: item.price,
         })),
       };
-      const sale = await createSale(payload);
-      const receipt = await getReceipt(sale.id);
-      setReceiptData(receipt);
-      setShowReceipt(true);
-    } catch (e) {
-      console.warn('Backend no disponible para ventas', e);
+      const result: any = await createSale(payload);
+      
+      const saleId = result?.sale?.id || result?.id;
+      const receiptNumber = result?.sale?.receipt_number || result?.receipt_number;
+
+      console.log("Respuesta createSale:", result);
+      console.log("Sale ID usado para recibo:", saleId);
+
+      if (saleId) {
+        try {
+          const receipt = await getReceipt(saleId);
+          setReceiptData(normalizeReceipt(receipt, result?.sale || result, cart, clientName, clientNit, paymentMethod, subtotal));
+          setShowReceipt(true);
+        } catch (receiptError) {
+          console.warn("Venta creada, pero falló obtener recibo:", receiptError);
+          setReceiptData(normalizeReceipt(null, result?.sale || result, cart, clientName, clientNit, paymentMethod, subtotal));
+          setShowReceipt(true);
+          refreshProducts();
+        }
+      } else {
+        setReceiptData(normalizeReceipt(null, result?.sale || result, cart, clientName, clientNit, paymentMethod, subtotal));
+        setShowReceipt(true);
+        refreshProducts();
+      }
+
+    } catch (e: any) {
+      alert(e.message || 'Error al procesar la venta');
+      console.warn('Error en venta:', e);
     }
+  };
+
+  const refreshProducts = () => {
+    if (!branch) return;
+    fetch(`/api/products/available?branch_id=${branch}`)
+      .then(r => r.json())
+      .then(pData => {
+        if (Array.isArray(pData)) {
+          setProducts(pData);
+        } else {
+          setProducts([]);
+        }
+      })
+      .catch(() => setProducts([]));
   };
 
   const closeReceipt = () => {
     setShowReceipt(false);
     setReceiptData(null);
     setCart([]);
+    refreshProducts();
   };
 
   const loadSales = useCallback(async () => {
@@ -143,9 +337,10 @@ export default function POSCheckout() {
                 <thead>
                   <tr className="border-b border-outline-variant/20 text-secondary text-xs uppercase">
                     <th className="text-left py-3 px-2 font-bold">Comprobante</th>
-                    <th className="text-left py-3 px-2 font-bold">Items</th>
+                    <th className="text-left py-3 px-2 font-bold">Cliente</th>
                     <th className="text-right py-3 px-2 font-bold">Total</th>
                     <th className="text-left py-3 px-2 font-bold">Método</th>
+                    <th className="text-left py-3 px-2 font-bold">Sucursal</th>
                     <th className="text-left py-3 px-2 font-bold">Fecha</th>
                     <th className="py-3 px-2"></th>
                   </tr>
@@ -154,10 +349,11 @@ export default function POSCheckout() {
                   {salesList.map((sale) => (
                     <tr key={sale.id} className="border-b border-outline-variant/10 hover:bg-surface-container/50">
                       <td className="py-3 px-2 font-bold text-on-surface">{sale.receipt_number}</td>
-                      <td className="py-3 px-2 text-secondary">{sale.items.length} producto(s)</td>
-                      <td className="py-3 px-2 text-right font-bold text-primary">Bs {Number(sale.total_amount).toFixed(2)}</td>
+                      <td className="py-3 px-2 text-secondary">{sale.customer_name}</td>
+                      <td className="py-3 px-2 text-right font-bold text-primary">Bs {formatMoney(sale.total || sale.total_amount)}</td>
                       <td className="py-3 px-2 text-secondary">{sale.payment_method}</td>
-                      <td className="py-3 px-2 text-secondary">{new Date(sale.sale_date).toLocaleString()}</td>
+                      <td className="py-3 px-2 text-secondary">{sale.branch_name}</td>
+                      <td className="py-3 px-2 text-secondary">{new Date(sale.created_at || sale.sale_date).toLocaleString()}</td>
                       <td className="py-3 px-2">
                         <button onClick={() => viewReceipt(sale.id)} className="text-xs font-bold text-primary hover:underline">Recibo</button>
                       </td>
@@ -175,31 +371,25 @@ export default function POSCheckout() {
           <h2 className="text-xl font-bold text-on-surface mb-4">Productos Disponibles</h2>
           
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4 overflow-y-auto pr-2 no-scrollbar">
+            {products.length === 0 && (
+              <p className="text-secondary text-sm p-4 col-span-full text-center">No hay productos con stock disponible en esta sucursal.</p>
+            )}
             {products.map(p => (
               <div 
-                key={p.id} 
+                key={p.product_id || p.id} 
                 onClick={() => addToCart(p)}
                 className="bg-surface border border-outline-variant/20 p-4 rounded-xl cursor-pointer hover:border-primary/50 transition-colors flex flex-col justify-between"
               >
                 <div>
                   <h3 className="font-bold text-on-surface">{p.name}</h3>
-                  <p className="text-xs text-secondary font-mono mt-1">{p.id}</p>
+                  <p className="text-xs text-secondary font-mono mt-1">{p.product_code}</p>
                 </div>
                 <div className="mt-4 flex justify-between items-center">
-                  <span className="font-bold text-primary">Bs {p.price.toFixed(2)}</span>
+                  <span className="font-bold text-primary">Bs {formatMoney(p.price)}</span>
                   <span className="text-xs font-medium bg-surface-container-high px-2 py-0.5 rounded text-secondary">Stock: {p.stock}</span>
                 </div>
               </div>
             ))}
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-outline-variant/10">
-            <button 
-              onClick={addDemoUnits}
-              className="text-sm font-bold text-primary hover:underline"
-            >
-              Cargar Demo (2x Leche Pil)
-            </button>
           </div>
         </section>
 
@@ -222,7 +412,7 @@ export default function POSCheckout() {
                     <option key={b.id} value={b.id}>{b.name}</option>
                   )) : (
                     <>
-                      <option value="b0000000-0000-0000-0000-000000000001">OXXO Prado (Mock)</option>
+                      <option value="b0000000-0000-0000-0000-000000000001">Sucursal Central</option>
                     </>
                   )}
                 </select>
@@ -248,13 +438,19 @@ export default function POSCheckout() {
               </div>
             ) : (
               <div className="space-y-3">
-                {cart.map((item, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-surface p-2 rounded border border-outline-variant/10">
-                    <div>
+                {cart.map((item) => (
+                  <div key={item.id} className="flex justify-between items-center bg-surface p-2 rounded border border-outline-variant/10">
+                    <div className="flex-1">
                       <p className="font-bold text-sm text-on-surface">{item.name}</p>
-                      <p className="text-xs text-secondary">{item.quantity} x Bs {item.price.toFixed(2)}</p>
+                      <p className="text-xs text-secondary">Bs {formatMoney(item.price)} c/u</p>
                     </div>
-                    <p className="font-bold text-primary">Bs {(item.quantity * item.price).toFixed(2)}</p>
+                    <div className="flex items-center gap-2">
+                      <button onClick={() => updateQuantity(item.id, -1)} className="w-6 h-6 bg-surface-container hover:bg-surface-container-high rounded flex items-center justify-center font-bold text-secondary">-</button>
+                      <span className="text-sm font-bold w-4 text-center">{item.quantity}</span>
+                      <button onClick={() => updateQuantity(item.id, 1)} className="w-6 h-6 bg-surface-container hover:bg-surface-container-high rounded flex items-center justify-center font-bold text-secondary">+</button>
+                      <span className="font-bold text-primary ml-2 w-16 text-right">Bs {formatMoney(item.quantity * item.price)}</span>
+                      <button onClick={() => removeFromCart(item.id)} className="text-red-500 hover:text-red-700 ml-2 text-xs font-bold uppercase">X</button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -264,7 +460,7 @@ export default function POSCheckout() {
           <div className="p-4 bg-surface-container-high/30 border-t border-outline-variant/10">
             <div className="flex justify-between items-center mb-4">
               <span className="font-bold text-lg text-on-surface">Total</span>
-              <span className="font-bold text-2xl text-primary">Bs {total.toFixed(2)}</span>
+              <span className="font-bold text-2xl text-primary">Bs {formatMoney(total)}</span>
             </div>
             
             <div className="mb-4">
@@ -296,52 +492,81 @@ export default function POSCheckout() {
 
         {/* Modal Comprobante */}
         {showReceipt && receiptData && (
-        <div id="receipt-overlay" className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div id="receipt-content" className="bg-surface-container-lowest rounded-xl max-w-sm w-full p-6 shadow-2xl">
-            <div className="text-center mb-6">
-              <div className="w-12 h-12 bg-green-100 dark:bg-green-900/30 text-green-600 rounded-full flex items-center justify-center mx-auto mb-3 print-hidden">
-                <Check className="w-6 h-6" />
+        <div id="receipt-overlay" className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 no-print">
+          <div id="receipt-content" className="bg-surface-container-lowest rounded-xl max-w-sm w-full p-6 shadow-2xl relative overflow-y-auto max-h-[90vh]">
+            <div 
+              ref={receiptRef} 
+              className="receipt-pdf-area receipt-print-area bg-white text-black p-6 rounded-lg"
+              style={{
+                width: "320px",
+                background: "#ffffff",
+                color: "#000000",
+                fontFamily: "Arial, sans-serif"
+              }}
+            >
+              <div className="text-center mb-4 border-b border-outline-variant/30 pb-4 print:border-black">
+                <h2 className="font-bold text-xl mb-1 text-on-surface print:text-black">Supermercado Doña Serafina</h2>
+                <p className="text-xs uppercase font-bold tracking-wider mb-2 text-secondary print:text-black">Comprobante de venta</p>
+                <p className="text-sm text-on-surface print:text-black">Nº {receiptData.receipt_number}</p>
+                <p className="text-sm text-on-surface print:text-black">Fecha: {new Date().toLocaleString()}</p>
+                <p className="text-sm mt-1 text-on-surface print:text-black">Sucursal: {branches.find(b => b.id === branch)?.name || 'Central'}</p>
               </div>
-              <h2 className="text-xl font-bold text-on-surface">Venta Exitosa</h2>
-              <p className="text-sm text-secondary">Comprobante {receiptData.receipt_number}</p>
-            </div>
 
-            <div className="bg-surface p-4 rounded-lg border border-outline-variant/10 text-sm mb-4 space-y-2">
-              <div className="flex justify-between"><span className="text-secondary">Cliente:</span><span className="font-bold text-on-surface">{receiptData.customer_name || clientName}</span></div>
-              <div className="flex justify-between"><span className="text-secondary">NIT/CI:</span><span className="font-bold text-on-surface">{receiptData.customer_nit || clientNit}</span></div>
-              <div className="flex justify-between"><span className="text-secondary">Método:</span><span className="font-bold text-on-surface">{receiptData.payment_method}</span></div>
-              {receiptData.items.map((item, i) => (
-                <div key={i} className="flex justify-between text-xs"><span className="text-secondary">{item.quantity}x Prod. {item.product_id.slice(0,8)}</span><span className="text-on-surface">Bs {item.subtotal.toFixed(2)}</span></div>
-              ))}
-              <div className="flex justify-between border-t border-outline-variant/10 pt-2"><span className="text-secondary">Subtotal:</span><span className="font-bold text-on-surface">Bs {receiptData.subtotal.toFixed(2)}</span></div>
-              <div className="flex justify-between"><span className="text-secondary">IVA ({(receiptData.tax_rate * 100).toFixed(0)}%):</span><span className="text-on-surface">Bs {receiptData.tax_amount.toFixed(2)}</span></div>
-              <div className="flex justify-between border-t border-outline-variant/20 pt-2"><span className="text-secondary font-bold">Total Pagado:</span><span className="font-bold text-primary text-lg">Bs {receiptData.total.toFixed(2)}</span></div>
-            </div>
+              <div className="mb-4 text-sm border-b border-outline-variant/30 pb-4 space-y-1 print:border-black print:text-black">
+                <div className="flex justify-between"><span className="text-secondary print:text-black">Cliente:</span><span className="font-bold text-on-surface print:text-black">{receiptData.customer_name || clientName}</span></div>
+                <div className="flex justify-between"><span className="text-secondary print:text-black">NIT/CI:</span><span className="font-bold text-on-surface print:text-black">{receiptData.customer_nit || clientNit}</span></div>
+                <div className="flex justify-between"><span className="text-secondary print:text-black">Método:</span><span className="font-bold text-on-surface print:text-black">{receiptData.payment_method}</span></div>
+              </div>
 
-            <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800 flex items-center gap-3 mb-6 print-hidden">
-              <Award className="w-8 h-8 text-purple-500" />
-              <div>
-                <p className="text-sm font-bold text-purple-900 dark:text-purple-300">Puntos Asignados</p>
-                <p className="text-xs text-purple-700 dark:text-purple-400">{receiptData.customer_name || clientName} ganó {Math.floor(receiptData.total)} puntos</p>
+              <div className="mb-4">
+                <table className="w-full text-sm text-left border-collapse print:text-black">
+                  <thead>
+                    <tr className="border-b border-outline-variant/30 print:border-black">
+                      <th className="py-2 text-secondary font-medium print:text-black">Cant.</th>
+                      <th className="py-2 text-secondary font-medium print:text-black">Producto</th>
+                      <th className="py-2 text-right text-secondary font-medium print:text-black">Precio</th>
+                      <th className="py-2 text-right text-secondary font-medium print:text-black">Subt.</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {receiptData.items && receiptData.items.map((item: any, i: number) => (
+                      <tr key={item.id || item.product_id || item.product_code || `${item.product_name}-${i}`} className="border-b border-outline-variant/10 print:border-transparent">
+                        <td className="py-2 align-top text-on-surface print:text-black">{item.quantity}</td>
+                        <td className="py-2 align-top pr-2 text-on-surface print:text-black">{item.name || item.product_name || 'Prod'}</td>
+                        <td className="py-2 text-right align-top text-on-surface print:text-black">{formatMoney(item.unit_price || item.price || (item.subtotal / item.quantity))}</td>
+                        <td className="py-2 text-right align-top text-on-surface print:text-black">{formatMoney(item.subtotal)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="flex justify-between border-t border-outline-variant/30 pt-4 font-bold text-lg mb-6 text-on-surface print:border-black print:text-black">
+                <span>Total Pagado:</span>
+                <span>Bs {formatMoney(receiptData.total)}</span>
+              </div>
+              
+              <div className="text-center font-bold text-sm mt-4 text-on-surface print:text-black">
+                Gracias por su compra
               </div>
             </div>
 
-            <div className="flex gap-2 print-hidden">
+            <div className="flex gap-2 mt-8 no-print flex-col sm:flex-row">
               <button
                 onClick={() => window.print()}
-                className="flex-1 py-2 bg-surface-container border border-outline-variant/20 text-on-surface rounded-lg font-bold hover:bg-surface-container-high"
+                className="flex-1 py-2 bg-surface-container border border-outline-variant/20 text-on-surface rounded-lg font-bold hover:bg-surface-container-high transition-colors"
               >
                 Imprimir
               </button>
               <button
-                onClick={() => window.open(`/api/sales/${receiptData.sale_id}/receipt/pdf`, '_blank')}
-                className="flex-1 py-2 bg-primary text-on-primary rounded-lg font-bold hover:bg-primary/90"
+                onClick={handleDownloadPdf}
+                className="flex-1 py-2 bg-primary text-on-primary rounded-lg font-bold hover:bg-primary/90 transition-colors"
               >
-                Descargar PDF
+                Guardar PDF
               </button>
               <button
                 onClick={closeReceipt}
-                className="flex-1 py-2 bg-outline-variant/20 text-on-surface rounded-lg font-bold hover:bg-outline-variant/30"
+                className="flex-1 py-2 bg-outline-variant/20 text-on-surface rounded-lg font-bold hover:bg-outline-variant/30 transition-colors"
               >
                 Cerrar
               </button>

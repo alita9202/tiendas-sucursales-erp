@@ -67,8 +67,8 @@ export default function TransferManager() {
       return;
     }
 
-    if (formData.quantity <= 0) {
-      alert('La cantidad debe ser mayor a 0.');
+    if (Number.isNaN(formData.quantity) || formData.quantity <= 0 || !Number.isInteger(formData.quantity)) {
+      alert('La cantidad debe ser un número entero mayor a 0.');
       return;
     }
 

@@ -42,7 +42,7 @@ export default function ExecutiveDashboard({ transactions, setActiveTab }: Execu
             Panel Ejecutivo
           </h2>
           <p className="text-on-surface-variant mt-3 max-w-xl font-body leading-relaxed opacity-80 text-sm">
-            Métricas principales y flujo recomendado para la demostración del proyecto.
+            Métricas principales y flujo de operación recomendado.
           </p>
         </div>
       </section>
@@ -64,7 +64,7 @@ export default function ExecutiveDashboard({ transactions, setActiveTab }: Execu
       {/* Demo Flow Section */}
       <section className="space-y-6 shrink-0">
         <h3 className="text-2xl font-headline font-bold text-on-surface border-b border-outline-variant/10 pb-4">
-          Flujo de demostración recomendado
+          Flujo de operación recomendado
         </h3>
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

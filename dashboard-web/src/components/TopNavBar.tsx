@@ -40,7 +40,7 @@ export default function TopNavBar({ searchQuery, setSearchQuery, activeTab }: To
         {/* Brand Logo & Search */}
         <div className="flex items-center gap-8">
           <span className="text-2xl font-headline font-bold text-primary dark:text-primary-fixed-dim tracking-tight cursor-default">
-            Alexandria ERP
+            Doña Serafina ERP
           </span>
           <div className="relative group hidden md:block">
             <span className="absolute inset-y-0 left-3 flex items-center text-on-surface-variant">

@@ -99,25 +99,31 @@
   body * {
     visibility: hidden;
   }
-  #receipt-content,
-  #receipt-content * {
+
+  .receipt-print-area,
+  .receipt-print-area * {
     visibility: visible;
   }
-  #receipt-content {
+
+  .receipt-print-area {
     position: absolute;
     left: 0;
     top: 0;
-    width: 100%;
-    box-shadow: none !important;
-    border-radius: 0 !important;
-    background: white !important;
-    color: black !important;
+    width: 80mm;
+    max-width: 80mm;
+    padding: 12px;
+    background: white;
+    color: black;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
   }
-  #receipt-content .print-hidden {
+
+  .no-print {
     display: none !important;
   }
-  #receipt-overlay {
-    background: none !important;
-    backdrop-filter: none !important;
+
+  @page {
+    size: auto;
+    margin: 10mm;
   }
 }

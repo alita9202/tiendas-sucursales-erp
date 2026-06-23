@@ -30,7 +30,7 @@ export default function SettingsView({
       <div>
         <h2 className="text-4xl font-headline font-bold text-on-surface">Configuración de Sistema</h2>
         <p className="text-on-surface-variant mt-2 font-body text-sm opacity-80 max-w-lg leading-relaxed">
-          Defina los parámetros fiscales, generales e institucionales que rigen Alexandria ERP.
+          Defina los parámetros fiscales, generales e institucionales que rigen Doña Serafina ERP.
         </p>
       </div>
 
@@ -154,7 +154,7 @@ export default function SettingsView({
             <Info className="w-4 h-4" />
           </div>
           <div>
-            <p className="font-bold">Alexandria ERP Systems</p>
+            <p className="font-bold">Doña Serafina ERP Systems</p>
             <p className="text-[10px] opacity-75 mt-0.5">Versión actual: 4.2.0-Editorial. Licenciado para Sucursal Central.</p>
           </div>
         </div>

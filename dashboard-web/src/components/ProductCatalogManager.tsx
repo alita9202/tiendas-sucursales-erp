@@ -49,7 +49,7 @@ export default function ProductCatalogManager() {
         setProducts(data.map(normalizeProduct));
       }
     } catch (err) {
-      console.warn('Backend unavailable, using mock products.', err);
+      console.warn('Backend unavailable.', err);
     }
   };
 
@@ -172,7 +172,8 @@ export default function ProductCatalogManager() {
           setProducts(products.map(p => p.id === editingProduct.id ? normalizeProduct(updated) : p));
           alert('Producto actualizado correctamente.');
         } else {
-          alert('No se pudo actualizar en API.');
+          const error = await res.json().catch(() => null);
+          alert(error?.message || 'No se pudo actualizar en API.');
         }
       } catch (err) {
         alert('No se pudo conectar con el API.');
@@ -206,7 +207,8 @@ export default function ProductCatalogManager() {
         setProducts([...products, normalizeProduct(created)]);
         alert('Producto registrado correctamente.');
       } else {
-        alert('No se pudo registrar el producto en API.');
+        const error = await res.json().catch(() => null);
+        alert(error?.message || 'No se pudo registrar el producto en API.');
       }
     } catch (err) {
       alert('No se pudo conectar con el API.');

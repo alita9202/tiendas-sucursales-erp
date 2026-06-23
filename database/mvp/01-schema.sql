@@ -1,4 +1,4 @@
-﻿-- 01-schema.sql
+-- 01-schema.sql
 -- Ejecutar conectado a 'supermarket_mvp_db'
 
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
@@ -65,25 +65,28 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+DROP TABLE IF EXISTS sale_items CASCADE;
+DROP TABLE IF EXISTS sales CASCADE;
+
 CREATE TABLE IF NOT EXISTS sales (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    branch_id UUID REFERENCES branches(id),
-    customer_id UUID REFERENCES customers(id),
-    receipt_number VARCHAR(100) UNIQUE NOT NULL,
-    payment_method VARCHAR(50) NOT NULL,
-    total_amount DECIMAL(12, 2) NOT NULL,
-    status VARCHAR(50) DEFAULT 'COMPLETED',
-    sale_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  branch_id UUID REFERENCES branches(id),
+  customer_name VARCHAR(150) NOT NULL,
+  customer_document VARCHAR(50),
+  receipt_number VARCHAR(100) UNIQUE NOT NULL,
+  payment_method VARCHAR(50) NOT NULL,
+  total NUMERIC(12,2) NOT NULL,
+  status VARCHAR(50) DEFAULT 'COMPLETED',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS sale_items (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    sale_id UUID REFERENCES sales(id) ON DELETE CASCADE,
-    product_id UUID REFERENCES products(id),
-    quantity INTEGER NOT NULL,
-    unit_price DECIMAL(10, 2) NOT NULL,
-    subtotal DECIMAL(12, 2) NOT NULL
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  sale_id UUID REFERENCES sales(id) ON DELETE CASCADE,
+  product_id UUID REFERENCES products(id),
+  quantity INTEGER NOT NULL,
+  unit_price NUMERIC(10,2) NOT NULL,
+  subtotal NUMERIC(12,2) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS inventory_transfers (

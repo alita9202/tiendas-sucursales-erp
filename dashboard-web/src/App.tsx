@@ -15,7 +15,6 @@ import InventoryLoadManager from './components/InventoryLoadManager';
 import TransferManager from './components/TransferManager';
 import ReportsManager from './components/ReportsManager';
 import NotificationsManager from './components/NotificationsManager';
-import DefenseChecklist from './components/DefenseChecklist';
 
 export default function App() {
   // Master state
@@ -115,8 +114,6 @@ export default function App() {
               setTaxRate={setTaxRate}
             />
           )}
-
-          {activeTab === 'checklist' && <DefenseChecklist />}
           
         </main>
       </div>

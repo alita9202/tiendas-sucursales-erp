@@ -22,7 +22,7 @@ type NotificationItem = {
 };
 
 export default function NotificationsManager() {
-  const mockNotifications: NotificationItem[] = [
+  const defaultNotifications: NotificationItem[] = [
     {
       id: '1',
       type: 'SaleCompleted',
@@ -53,7 +53,7 @@ export default function NotificationsManager() {
     },
   ];
 
-  const [notifications, setNotifications] = useState<NotificationItem[]>(mockNotifications);
+  const [notifications, setNotifications] = useState<NotificationItem[]>(defaultNotifications);
   const [backendError, setBackendError] = useState(false);
   const [activeFilter, setActiveFilter] = useState('ALL');
   const [loading, setLoading] = useState(false);
@@ -88,8 +88,8 @@ export default function NotificationsManager() {
         setBackendError(false);
       }
     } catch (e) {
-      console.warn('Backend unavailable, using mock notifications', e);
-      setNotifications(mockNotifications);
+      console.warn('Backend unavailable, using default notifications', e);
+      setNotifications(defaultNotifications);
       setBackendError(true);
     } finally {
       setLoading(false);
@@ -230,7 +230,7 @@ export default function NotificationsManager() {
         {backendError && (
           <div className="bg-orange-50 dark:bg-orange-900/20 border-l-4 border-orange-500 p-3 rounded-r-lg">
             <p className="text-orange-800 dark:text-orange-300 font-medium text-xs">
-              API no disponible. Se muestran notificaciones demo para la presentación.
+              API no disponible. Se muestran notificaciones de ejemplo.
             </p>
           </div>
         )}

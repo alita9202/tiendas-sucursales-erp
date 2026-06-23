@@ -1,4 +1,4 @@
-﻿-- 03-views.sql
+-- 03-views.sql
 
 CREATE OR REPLACE VIEW v_inventory_by_branch AS
 SELECT 
@@ -30,21 +30,21 @@ GROUP BY p.id, p.code, p.name;
 
 CREATE OR REPLACE VIEW v_sales_daily_report AS
 SELECT 
-    DATE(sale_date) AS sale_date, 
+    DATE(created_at) AS sale_date, 
     payment_method, 
     COUNT(*) AS total_sales, 
-    SUM(total_amount) AS total_income
+    SUM(total) AS total_income
 FROM sales
 WHERE status = 'COMPLETED'
-GROUP BY DATE(sale_date), payment_method;
+GROUP BY DATE(created_at), payment_method;
 
 CREATE OR REPLACE VIEW v_sales_detail AS
 SELECT 
     s.receipt_number, 
-    s.sale_date, 
+    s.created_at AS sale_date, 
     c.name AS company_name, 
     b.name AS branch_name, 
-    cu.full_name AS customer_name, 
+    s.customer_name, 
     p.name AS product_name, 
     si.quantity, 
     si.unit_price, 
@@ -54,7 +54,6 @@ FROM sales s
 JOIN sale_items si ON s.id = si.sale_id
 JOIN branches b ON s.branch_id = b.id
 JOIN companies c ON b.company_id = c.id
-LEFT JOIN customers cu ON s.customer_id = cu.id
 JOIN products p ON si.product_id = p.id;
 
 

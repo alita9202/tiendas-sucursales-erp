@@ -15,7 +15,7 @@ export default function InventoryManager({
   updateProductStock,
   addLog,
 }: InventoryManagerProps) {
-  const [mockInventory, setMockInventory] = useState<any[]>([]);
+  const [localInventory, setLocalInventory] = useState<any[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [kardexRows, setKardexRows] = useState<any[]>([]);
   const [selectedKardexItem, setSelectedKardexItem] = useState<any | null>(null);
@@ -23,7 +23,7 @@ export default function InventoryManager({
 
   const fetchInventory = async () => {
     try {
-      const res = await fetch('http://localhost:3000/api/inventory');
+      const res = await fetch('/api/inventory');
       if (res.ok) {
         const data = await res.json();
 
@@ -52,10 +52,10 @@ export default function InventoryManager({
           return priority[a.stockStatus] - priority[b.stockStatus];
         });
 
-        setMockInventory(mappedInventory);
+        setLocalInventory(mappedInventory);
       }
     } catch (err) {
-      console.warn('Backend unavailable, using mock inventory', err);
+      console.warn('Backend unavailable', err);
     }
   };
 
@@ -70,7 +70,7 @@ export default function InventoryManager({
     }
 
     try {
-      const res = await fetch(`http://localhost:3000/api/inventory/kardex/${item.branchId}/${item.productId}`);
+      const res = await fetch(`/api/inventory/kardex/${item.branchId}/${item.productId}`);
 
       if (res.ok) {
         const data = await res.json();
@@ -100,8 +100,8 @@ export default function InventoryManager({
 
     const quantity = Number(qtyText);
 
-    if (Number.isNaN(quantity) || quantity <= 0) {
-      alert('La cantidad debe ser mayor a 0.');
+    if (Number.isNaN(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
+      alert('La cantidad debe ser un número entero mayor a 0.');
       return;
     }
 
@@ -110,7 +110,7 @@ export default function InventoryManager({
     if (reason === null) return;
 
     try {
-      const res = await fetch('http://localhost:3000/api/inventory/input', {
+      const res = await fetch('/api/inventory/input', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -153,8 +153,8 @@ export default function InventoryManager({
 
     const quantity = Number(qtyText);
 
-    if (Number.isNaN(quantity) || quantity <= 0) {
-      alert('La cantidad debe ser mayor a 0.');
+    if (Number.isNaN(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
+      alert('La cantidad debe ser un número entero mayor a 0.');
       return;
     }
 
@@ -171,7 +171,7 @@ export default function InventoryManager({
     if (reason === null) return;
 
     try {
-      const res = await fetch('http://localhost:3000/api/inventory/output', {
+      const res = await fetch('/api/inventory/output', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -197,7 +197,7 @@ export default function InventoryManager({
   const exportInventory = () => {
     const headers = 'empresa;sucursal;codigo_producto;producto;cantidad;stock_minimo;estado\n';
 
-    const rows = mockInventory.map((row: any) => [
+    const rows = localInventory.map((row: any) => [
       row.company,
       row.branchName,
       row.productCode,
@@ -221,15 +221,15 @@ export default function InventoryManager({
     URL.revokeObjectURL(url);
   };
 
-  const filteredInventory = mockInventory.filter((item: any) => {
+  const filteredInventory = localInventory.filter((item: any) => {
     const text = `${item.product} ${item.productCode} ${item.company} ${item.branch}`.toLowerCase();
     return text.includes(searchTerm.toLowerCase().trim());
   });
 
-  const totalItems = mockInventory.length;
-  const totalLowStock = mockInventory.filter((item: any) => item.stockStatus === 'LOW_STOCK').length;
-  const totalOutOfStock = mockInventory.filter((item: any) => item.stockStatus === 'OUT_OF_STOCK').length;
-  const totalBranches = new Set(mockInventory.map((item: any) => item.branch)).size;
+  const totalItems = localInventory.length;
+  const totalLowStock = localInventory.filter((item: any) => item.stockStatus === 'LOW_STOCK').length;
+  const totalOutOfStock = localInventory.filter((item: any) => item.stockStatus === 'OUT_OF_STOCK').length;
+  const totalBranches = new Set(localInventory.map((item: any) => item.branch)).size;
 
   return (
     <div className="h-full overflow-y-auto p-6 bg-surface dark:bg-surface-dark">
@@ -308,13 +308,14 @@ export default function InventoryManager({
                 <table className="w-full text-left border-collapse text-sm">
                   <thead>
                     <tr className="bg-surface-container-high/50 border-b border-outline-variant/20 text-secondary">
-                      <th className="p-4">Producto</th>
-                      <th className="p-4">Supermercado</th>
-                      <th className="p-4">Sucursal</th>
-                      <th className="p-4 text-center">Mínimo</th>
-                      <th className="p-4 text-center">Cantidad</th>
-                      <th className="p-4 text-center">Estado</th>
-                      <th className="p-4 text-right">Acciones</th>
+                      <th className="p-4 whitespace-nowrap">Producto</th>
+                      <th className="p-4 whitespace-nowrap">Código</th>
+                      <th className="p-4 whitespace-nowrap">Supermercado</th>
+                      <th className="p-4 whitespace-nowrap">Sucursal</th>
+                      <th className="p-4 text-center whitespace-nowrap">Stock Mín.</th>
+                      <th className="p-4 text-center whitespace-nowrap">Stock Act.</th>
+                      <th className="p-4 text-center whitespace-nowrap">Estado</th>
+                      <th className="p-4 text-right whitespace-nowrap">Acciones</th>
                     </tr>
                   </thead>
 
@@ -326,11 +327,12 @@ export default function InventoryManager({
                           item.lowStock ? 'bg-red-50/30 dark:bg-red-900/10' : ''
                         }`}
                       >
-                        <td className="p-4 font-bold text-on-surface">{item.product}</td>
-                        <td className="p-4">{item.company}</td>
-                        <td className="p-4 text-secondary">{item.branch}</td>
-                        <td className="p-4 text-center font-mono">{item.minStock}</td>
-                        <td className="p-4 text-center">
+                        <td className="p-4 font-bold text-on-surface whitespace-nowrap">{item.product}</td>
+                        <td className="p-4 text-secondary font-mono text-xs whitespace-nowrap">{item.productCode}</td>
+                        <td className="p-4 whitespace-nowrap">{item.company}</td>
+                        <td className="p-4 text-secondary whitespace-nowrap">{item.branch}</td>
+                        <td className="p-4 text-center font-mono whitespace-nowrap">{item.minStock}</td>
+                        <td className="p-4 text-center whitespace-nowrap">
                           <span className={`font-mono text-base font-bold ${item.lowStock ? 'text-red-600' : 'text-on-surface'}`}>
                             {item.quantity}
                           </span>
@@ -350,22 +352,22 @@ export default function InventoryManager({
                             </span>
                           )}
                         </td>
-                        <td className="p-4 text-right">
-                          <div className="flex justify-end gap-2">
+                        <td className="p-4 text-right whitespace-nowrap">
+                          <div className="flex justify-end gap-1">
                             <button
                               onClick={() => handleViewKardex(item)}
-                              className="px-2 py-1 bg-surface border border-outline-variant/20 text-xs font-medium rounded hover:bg-primary/10 hover:text-primary transition-colors"
+                              className="px-2 py-1.5 bg-surface border border-outline-variant/30 text-xs font-bold rounded hover:bg-blue-50 text-blue-600 transition-colors"
                             >
-                              Ver Kardex
+                              Kardex
                             </button>
 
                             <button
                               onClick={() => handleOutput(item)}
                               disabled={item.quantity <= 0}
-                              className={`px-2 py-1 bg-surface border border-outline-variant/20 text-xs font-medium rounded transition-colors ${
+                              className={`px-2 py-1.5 bg-surface border border-outline-variant/30 text-xs font-bold rounded transition-colors ${
                                 item.quantity <= 0
-                                  ? 'text-gray-400 cursor-not-allowed'
-                                  : 'text-red-600 hover:bg-red-50'
+                                  ? 'text-gray-400 cursor-not-allowed opacity-50'
+                                  : 'text-red-600 hover:bg-red-50 hover:border-red-200'
                               }`}
                             >
                               Baja
@@ -374,7 +376,7 @@ export default function InventoryManager({
                             {item.lowStock && (
                               <button
                                 onClick={() => handleReplenish(item)}
-                                className="px-2 py-1 bg-primary text-on-primary text-xs font-medium rounded hover:bg-primary/90 transition-colors flex items-center gap-1"
+                                className="px-2 py-1.5 bg-green-600 text-white text-xs font-bold rounded hover:bg-green-700 transition-colors flex items-center gap-1"
                               >
                                 <RefreshCw className="w-3 h-3" /> Reabastecer
                               </button>

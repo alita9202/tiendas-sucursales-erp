@@ -26,7 +26,11 @@ export async function createSale(payload: CreateSalePayload): Promise<Sale> {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
-  if (!res.ok) throw new Error('Failed to create sale');
+  if (!res.ok) {
+    const errorData = await res.json().catch(() => null);
+    const errorMessage = errorData?.detail || errorData?.message || 'Failed to create sale';
+    throw new Error(errorMessage);
+  }
   return res.json();
 }
 

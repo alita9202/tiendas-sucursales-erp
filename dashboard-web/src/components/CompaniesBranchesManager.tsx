@@ -47,8 +47,8 @@ export default function CompaniesBranchesManager() {
     try {
       setLoading(true);
       const [compRes, branchRes] = await Promise.all([
-        fetch('http://localhost:3000/api/companies'),
-        fetch('http://localhost:3000/api/branches')
+        fetch('/api/companies'),
+        fetch('/api/branches')
       ]);
 
       if (compRes.ok && branchRes.ok) {
@@ -125,13 +125,13 @@ export default function CompaniesBranchesManager() {
   const handleSaveCompany = async (e: React.FormEvent) => {
     e.preventDefault();
     const url = isEditingCompany 
-      ? `http://localhost:3000/api/companies/${editingCompanyId}`
-      : 'http://localhost:3000/api/companies';
+      ? `/api/companies/${editingCompanyId}`
+      : '/api/companies';
     const method = isEditingCompany ? 'PUT' : 'POST';
 
     const payload = isEditingCompany 
       ? companyForm 
-      : { id: generateUUID(), ...companyForm };
+      : { ...companyForm };
 
     try {
       const response = await fetch(url, {
@@ -144,7 +144,8 @@ export default function CompaniesBranchesManager() {
         closeCompanyModal();
         fetchData();
       } else {
-        alert('Error al guardar la empresa.');
+        const error = await response.json().catch(() => null);
+        alert(error?.message || 'Error al guardar la empresa.');
       }
     } catch (error) {
       console.error(error);
@@ -155,13 +156,26 @@ export default function CompaniesBranchesManager() {
   const handleSaveBranch = async (e: React.FormEvent) => {
     e.preventDefault();
     const url = isEditingBranch 
-      ? `http://localhost:3000/api/branches/${editingBranchId}`
-      : 'http://localhost:3000/api/branches';
+      ? `/api/branches/${editingBranchId}`
+      : '/api/branches';
     const method = isEditingBranch ? 'PUT' : 'POST';
 
-    const payload = isEditingBranch 
-      ? branchForm 
-      : { id: generateUUID(), company_id: selectedCompanyId, ...branchForm };
+    const companyId = isEditingBranch ? editingBranchId : selectedCompanyId; // Actually we shouldn't use editingBranchId for company_id, we should use branchForm.company_id
+    
+    const payload = {
+      name: branchForm.name.trim(),
+      company_id: isEditingBranch ? branchForm.company_id : selectedCompanyId,
+      city: branchForm.city.trim(),
+      address: branchForm.address.trim(),
+      status: branchForm.status
+    };
+
+    if (!payload.company_id || !payload.name || !payload.city || !payload.address) {
+      alert("No se pudo guardar la sucursal. Seleccione una empresa y complete nombre, ciudad y dirección.");
+      return;
+    }
+
+    console.log("Payload sucursal enviado:", payload);
 
     try {
       const response = await fetch(url, {
@@ -174,7 +188,8 @@ export default function CompaniesBranchesManager() {
         closeBranchModal();
         fetchData();
       } else {
-        alert('Error al guardar la sucursal.');
+        const error = await response.json().catch(() => null);
+        alert(error?.message || 'Error al guardar la sucursal.');
       }
     } catch (error) {
       console.error(error);
@@ -186,7 +201,7 @@ export default function CompaniesBranchesManager() {
     if (!window.confirm(`¿Estás seguro de eliminar el supermercado "${name}"? \n\nTen en cuenta que no podrás eliminarlo si aún tiene sucursales registradas.`)) return;
     
     try {
-      const res = await fetch(`http://localhost:3000/api/companies/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/companies/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
       } else {
@@ -202,7 +217,7 @@ export default function CompaniesBranchesManager() {
     if (!window.confirm(`¿Estás seguro de eliminar la sucursal "${name}"?`)) return;
     
     try {
-      const res = await fetch(`http://localhost:3000/api/branches/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/branches/${id}`, { method: 'DELETE' });
       if (res.ok) {
         fetchData();
       } else {
