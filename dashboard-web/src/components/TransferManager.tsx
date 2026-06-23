@@ -10,7 +10,7 @@ export default function TransferManager() {
     source_branch: '',
     dest_branch: '',
     product_id: '',
-    quantity: 50,
+    quantity: 50 as number | string,
     user_id: 'EMP-001'
   });
 
@@ -203,7 +203,10 @@ export default function TransferManager() {
                   type="number"
                   min="1"
                   value={formData.quantity}
-                  onChange={e => setFormData({ ...formData, quantity: +e.target.value })}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormData({ ...formData, quantity: val === '' ? '' : Number(val) });
+                  }}
                   className="w-full bg-surface border border-outline-variant/30 rounded-lg px-3 py-2"
                 />
               </div>

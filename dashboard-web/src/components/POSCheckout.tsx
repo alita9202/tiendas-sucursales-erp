@@ -8,6 +8,56 @@ import type { CreateSalePayload, ReceiptResponse, Sale } from '../types';
 export default function POSCheckout() {
   const receiptRef = useRef<HTMLDivElement | null>(null);
 
+  const handlePrint = () => {
+    const printContent = document.getElementById("receipt-content");
+    if (!printContent) return;
+    
+    const iframe = document.createElement('iframe');
+    iframe.style.position = 'absolute';
+    iframe.style.width = '0px';
+    iframe.style.height = '0px';
+    iframe.style.border = 'none';
+    document.body.appendChild(iframe);
+    
+    const doc = iframe.contentWindow?.document;
+    if (doc) {
+      const styles = Array.from(document.querySelectorAll('style, link[rel="stylesheet"]'))
+        .map(style => style.outerHTML)
+        .join('');
+        
+      doc.open();
+      doc.write(`
+        <html>
+          <head>
+            <title>Imprimir Recibo</title>
+            ${styles}
+            <style>
+              body { padding: 20px; font-family: sans-serif; background: white; color: black; }
+              @media print {
+                body { padding: 0; }
+                .no-print { display: none !important; }
+              }
+            </style>
+          </head>
+          <body>
+            <div style="max-width: 400px; margin: 0 auto; color: black;">
+              ${printContent.innerHTML}
+            </div>
+          </body>
+        </html>
+      `);
+      doc.close();
+      
+      iframe.contentWindow?.focus();
+      setTimeout(() => {
+        iframe.contentWindow?.print();
+        setTimeout(() => {
+          document.body.removeChild(iframe);
+        }, 1000);
+      }, 250);
+    }
+  };
+
   const handleDownloadPdf = () => {
     if (!receiptData) {
       alert("No hay comprobante para descargar.");
@@ -17,80 +67,123 @@ export default function POSCheckout() {
     const doc = new jsPDF({
       orientation: "portrait",
       unit: "mm",
-      format: "a4",
+      format: [80, 297],
     });
 
     const pageWidth = doc.internal.pageSize.getWidth();
+    let cursorY = 10;
 
     const receiptNumber = receiptData.receipt_number || "SIN-RECIBO";
     const customerName = receiptData.customer_name || "Cliente";
     const customerDocument = receiptData.customer_nit || "";
     const paymentMethod = receiptData.payment_method || "Efectivo";
-    
-    // We can find the branchName from branches array if needed, or use a default.
     const branchName = branches.find((b: any) => b.id === branch)?.name || "Sucursal";
     const total = Number(receiptData.total || 0);
 
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(16);
-    doc.text("Supermercado Doña Serafina", pageWidth / 2, 18, { align: "center" });
+    doc.setFontSize(14);
+    doc.text(receiptData.company_name || "Compañía ERP", pageWidth / 2, cursorY, { align: "center" });
+    
+    cursorY += 6;
+    doc.setFontSize(9);
+    doc.text("COMPROBANTE DE VENTA", pageWidth / 2, cursorY, { align: "center" });
 
-    doc.setFontSize(11);
-    doc.text("COMPROBANTE DE VENTA", pageWidth / 2, 26, { align: "center" });
-
+    cursorY += 5;
     doc.setFont("helvetica", "normal");
-    doc.setFontSize(10);
-    doc.text(`N° ${receiptNumber}`, pageWidth / 2, 34, { align: "center" });
-    doc.text(`Fecha: ${new Date().toLocaleString()}`, pageWidth / 2, 40, { align: "center" });
-    doc.text(`Sucursal: ${branchName}`, pageWidth / 2, 46, { align: "center" });
+    doc.setFontSize(9);
+    doc.text(`Nº ${receiptNumber}`, pageWidth / 2, cursorY, { align: "center" });
+    
+    cursorY += 5;
+    doc.text(`Fecha: ${new Date().toLocaleString()}`, pageWidth / 2, cursorY, { align: "center" });
+    
+    cursorY += 5;
+    doc.text(`Sucursal: ${branchName}`, pageWidth / 2, cursorY, { align: "center" });
 
-    doc.line(25, 52, pageWidth - 25, 52);
+    cursorY += 4;
+    doc.setLineWidth(0.5);
+    doc.line(5, cursorY, pageWidth - 5, cursorY);
 
-    doc.text(`Cliente: ${customerName}`, 25, 62);
-    doc.text(`NIT/CI: ${customerDocument}`, 25, 69);
-    doc.text(`Método: ${paymentMethod}`, 25, 76);
+    cursorY += 6;
+    doc.setFontSize(9);
+    doc.text(`Cliente: ${customerName}`, 5, cursorY);
+    cursorY += 5;
+    doc.text(`NIT/CI: ${customerDocument}`, 5, cursorY);
+    cursorY += 5;
+    doc.text(`Método: ${paymentMethod}`, 5, cursorY);
+
+    cursorY += 4;
+    doc.line(5, cursorY, pageWidth - 5, cursorY);
 
     const items = Array.isArray(receiptData.items) ? receiptData.items : cart;
-
     const tableRows = items.map((item: any) => {
       const quantity = Number(item.quantity || 0);
       const name = item.product_name || item.name || "Producto";
       const price = Number(item.unit_price ?? item.price ?? 0);
       const subtotal = Number(item.subtotal ?? quantity * price);
-
       return [
         String(quantity),
-        name,
-        `Bs ${price.toFixed(2)}`,
-        `Bs ${subtotal.toFixed(2)}`,
+        name.substring(0, 15),
+        `${price.toFixed(2)}`,
+        `${subtotal.toFixed(2)}`,
       ];
     });
 
     autoTable(doc, {
-      startY: 84,
-      head: [["Cant.", "Producto", "Precio", "Subtotal"]],
+      startY: cursorY + 2,
+      head: [["Cant", "Prod", "P.Unit", "SubT"]],
       body: tableRows,
-      theme: "grid",
+      theme: "plain",
       styles: {
-        fontSize: 9,
-        cellPadding: 2,
+        fontSize: 8,
+        cellPadding: 1,
+        font: "helvetica",
       },
       headStyles: {
-        fillColor: [30, 64, 175],
-        textColor: 255,
+        fontStyle: "bold",
       },
+      columnStyles: {
+        0: { cellWidth: 10 },
+        1: { cellWidth: 25 },
+        2: { cellWidth: 15, halign: "right" },
+        3: { cellWidth: 15, halign: "right" },
+      },
+      margin: { left: 5, right: 5 }
     });
 
-    const finalY = (doc as any).lastAutoTable?.finalY || 100;
+    const finalY = (doc as any).lastAutoTable?.finalY || cursorY + 10;
+    cursorY = finalY + 4;
+    doc.line(5, cursorY, pageWidth - 5, cursorY);
 
+    cursorY += 6;
     doc.setFont("helvetica", "bold");
-    doc.setFontSize(12);
-    doc.text("Total Pagado:", 25, finalY + 14);
-    doc.text(`Bs ${total.toFixed(2)}`, pageWidth - 25, finalY + 14, { align: "right" });
-
-    doc.setFont("helvetica", "normal");
     doc.setFontSize(10);
-    doc.text("Gracias por su compra", pageWidth / 2, finalY + 28, { align: "center" });
+    doc.text("Total Pagado:", 5, cursorY);
+    doc.text(`Bs ${total.toFixed(2)}`, pageWidth - 5, cursorY, { align: "right" });
+
+    const earnedPts = (receiptData as any).earned_points || 0;
+    const totalPts = (receiptData as any).total_points || 0;
+
+    cursorY += 6;
+    doc.setFillColor(243, 232, 255);
+    doc.setDrawColor(216, 180, 254);
+    doc.roundedRect(5, cursorY, pageWidth - 10, 15, 2, 2, 'FD');
+
+    cursorY += 6;
+    doc.setFontSize(9);
+    doc.setTextColor(88, 28, 135);
+    doc.text(`Puntos ganados:`, 8, cursorY);
+    doc.text(`+${earnedPts} pts`, pageWidth - 8, cursorY, { align: "right" });
+
+    cursorY += 6;
+    doc.setFont("helvetica", "bold");
+    doc.text(`Total Acumulados:`, 8, cursorY);
+    doc.text(`${totalPts} pts`, pageWidth - 8, cursorY, { align: "right" });
+
+    cursorY += 12;
+    doc.setTextColor(0, 0, 0);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    doc.text("Gracias por su compra", pageWidth / 2, cursorY, { align: "center" });
 
     doc.save(`comprobante-${receiptNumber}.pdf`);
   };
@@ -106,6 +199,9 @@ export default function POSCheckout() {
       customer_name: receipt?.customer_name || saleData?.customer_name || clientName || "Cliente",
       customer_nit: receipt?.customer_document || saleData?.customer_document || clientNit || "",
       payment_method: receipt?.payment_method || saleData?.payment_method || paymentMethod || "Efectivo",
+      company_name: receipt?.company_name || saleData?.company_name || "Compañía ERP",
+      earned_points: receipt?.earned_points || saleData?.earned_points || Math.floor(Number(receipt?.total ?? receipt?.total_amount ?? saleData?.total ?? saleData?.total_amount ?? cartTotal ?? 0) / 10),
+      total_points: receipt?.total_points || saleData?.total_points || 0,
       total: Number(receipt?.total ?? receipt?.total_amount ?? saleData?.total ?? saleData?.total_amount ?? cartTotal ?? 0),
       items: Array.isArray(receipt?.items) && receipt.items.length > 0 ? receipt.items : cartItems.map(item => ({
         name: item.name,
@@ -114,9 +210,10 @@ export default function POSCheckout() {
       }))
     };
   };
-  const [cart, setCart] = useState<{ id: string; name: string; price: number; quantity: number }[]>([]);
+  const [cart, setCart] = useState<{ id: string; name: string; price: number; quantity: number; stock: number }[]>([]);
   const [clientName, setClientName] = useState('Juanito Perez');
   const [clientNit, setClientNit] = useState('1234567');
+  const [clientEmail, setClientEmail] = useState('');
   
   const [branches, setBranches] = useState<any[]>([]);
   const [branch, setBranch] = useState('b0000000-0000-0000-0000-000000000001');
@@ -220,12 +317,18 @@ export default function POSCheckout() {
 
   const handleProcessSale = async () => {
     if (cart.length === 0) return;
+    if (!clientEmail.trim()) {
+      alert('El correo electrónico es obligatorio');
+      return;
+    }
+    
     try {
 
       const payload = {
         branch_id: branch,
         customer_name: clientName,
         customer_document: clientNit,
+        customer_email: clientEmail,
         payment_method: paymentMethod,
         items: cart.map(item => ({
           product_id: item.id,
@@ -417,7 +520,7 @@ export default function POSCheckout() {
                   )}
                 </select>
               </div>
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 mb-2">
                 <div>
                   <label className="text-xs font-bold text-secondary uppercase block mb-1">Cliente</label>
                   <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
@@ -426,6 +529,10 @@ export default function POSCheckout() {
                   <label className="text-xs font-bold text-secondary uppercase block mb-1">NIT/CI</label>
                   <input type="text" value={clientNit} onChange={e => setClientNit(e.target.value)} className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
                 </div>
+              </div>
+              <div>
+                <label className="text-xs font-bold text-secondary uppercase block mb-1">Correo Electrónico *</label>
+                <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} required placeholder="cliente@correo.com" className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
               </div>
             </div>
           </div>
@@ -458,10 +565,17 @@ export default function POSCheckout() {
           </div>
 
           <div className="p-4 bg-surface-container-high/30 border-t border-outline-variant/10">
-            <div className="flex justify-between items-center mb-4">
+            <div className="flex justify-between items-center mb-2">
               <span className="font-bold text-lg text-on-surface">Total</span>
               <span className="font-bold text-2xl text-primary">Bs {formatMoney(total)}</span>
             </div>
+            
+            {total > 0 && (
+              <div className="flex justify-between items-center mb-4 text-sm text-purple-600 dark:text-purple-400 font-medium">
+                <span className="flex items-center gap-1"><Award className="w-4 h-4"/> Puntos a ganar:</span>
+                <span>+{Math.floor(total / 10)} pts</span>
+              </div>
+            )}
             
             <div className="mb-4">
               <label className="text-xs font-bold text-secondary uppercase block mb-2">Método de Pago</label>
@@ -505,7 +619,7 @@ export default function POSCheckout() {
               }}
             >
               <div className="text-center mb-4 border-b border-outline-variant/30 pb-4 print:border-black">
-                <h2 className="font-bold text-xl mb-1 text-on-surface print:text-black">Supermercado Doña Serafina</h2>
+                <h2 className="font-bold text-xl mb-1 text-on-surface print:text-black">{(receiptData as any).company_name || "Compañía ERP"}</h2>
                 <p className="text-xs uppercase font-bold tracking-wider mb-2 text-secondary print:text-black">Comprobante de venta</p>
                 <p className="text-sm text-on-surface print:text-black">Nº {receiptData.receipt_number}</p>
                 <p className="text-sm text-on-surface print:text-black">Fecha: {new Date().toLocaleString()}</p>
@@ -541,9 +655,20 @@ export default function POSCheckout() {
                 </table>
               </div>
 
-              <div className="flex justify-between border-t border-outline-variant/30 pt-4 font-bold text-lg mb-6 text-on-surface print:border-black print:text-black">
+              <div className="flex justify-between border-t border-outline-variant/30 pt-4 font-bold text-lg mb-4 text-on-surface print:border-black print:text-black">
                 <span>Total Pagado:</span>
                 <span>Bs {formatMoney(receiptData.total)}</span>
+              </div>
+              
+              <div className="bg-purple-50 dark:bg-purple-900/20 p-3 rounded-lg border border-purple-100 dark:border-purple-800/30 mb-6 text-sm print:border-black print:bg-transparent">
+                <div className="flex justify-between font-medium text-purple-900 dark:text-purple-300 print:text-black">
+                  <span>Puntos ganados:</span>
+                  <span>+{(receiptData as any).earned_points || 0} pts</span>
+                </div>
+                <div className="flex justify-between font-bold text-purple-900 dark:text-purple-300 print:text-black mt-1">
+                  <span>Total Acumulados:</span>
+                  <span>{(receiptData as any).total_points || 0} pts</span>
+                </div>
               </div>
               
               <div className="text-center font-bold text-sm mt-4 text-on-surface print:text-black">
@@ -553,7 +678,7 @@ export default function POSCheckout() {
 
             <div className="flex gap-2 mt-8 no-print flex-col sm:flex-row">
               <button
-                onClick={() => window.print()}
+                onClick={handlePrint}
                 className="flex-1 py-2 bg-surface-container border border-outline-variant/20 text-on-surface rounded-lg font-bold hover:bg-surface-container-high transition-colors"
               >
                 Imprimir

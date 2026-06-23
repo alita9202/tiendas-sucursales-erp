@@ -55,7 +55,7 @@ export default function SideNavBar({ activeTab, setActiveTab }: SideNavBarProps)
       {/* Brand Header */}
       <div className="px-8 py-10">
         <h1 className="text-xl font-headline font-bold text-on-surface tracking-tight">
-          Supermercado Doña Serafina
+          Multi-compañía Doña Serafina
         </h1>
         <p className="font-label text-[10px] uppercase tracking-[0.2em] text-secondary opacity-70 mt-1">
           ERP

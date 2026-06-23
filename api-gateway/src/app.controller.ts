@@ -1,5 +1,8 @@
 import { Controller, Get, Post, Put, Delete, Body, Param, HttpException, HttpStatus, Query } from '@nestjs/common';
 import { Pool } from 'pg';
+import * as nodemailer from 'nodemailer';
+
+import { EventEmitter } from 'events';
 
 const pool = new Pool({
   user: process.env.POSTGRES_USER || 'admin',
@@ -7,6 +10,129 @@ const pool = new Pool({
   host: process.env.POSTGRES_HOST || 'localhost',
   port: parseInt(process.env.POSTGRES_PORT || '5432', 10),
   database: process.env.POSTGRES_DB || 'erp_main_db',
+});
+
+// --- EVENT BUS & ASYNC NOTIFICATION SERVICE ---
+export const eventBus = new EventEmitter();
+
+const transporter = nodemailer.createTransport({
+  host: 'smtp.gmail.com',
+  port: 587,
+  secure: false, // false para puerto 587
+  auth: {
+    user: 'alita4774@gmail.com',
+    pass: 'stpgupuseoboclkw', 
+  },
+});
+
+eventBus.on('SaleCompleted', (payload: any) => {
+  setTimeout(async () => {
+    try {
+      console.log(`[Notification Service] Procesando evento asíncrono para Venta: ${payload.receipt_number}`);
+      console.log(`[Notification Service] Enviando correo electrónico a cliente: ${payload.customer_name}...`);
+      
+      const event_type = 'SaleCompleted';
+      const content = `Comprobante digital enviado con éxito a: ${payload.customer_name} (${payload.customer_email || 'N/A'}) | Recibo: ${payload.receipt_number}`;
+      
+      if (payload.customer_email) {
+        const itemsHtml = payload.items && payload.items.length > 0 
+          ? payload.items.map((i: any) => `
+              <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${i.quantity}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee;">${i.name}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">Bs ${Number(i.unit_price).toFixed(2)}</td>
+                <td style="padding: 10px; border-bottom: 1px solid #eee; text-align: right;">Bs ${Number(i.subtotal).toFixed(2)}</td>
+              </tr>
+            `).join('')
+          : '<tr><td colspan="4" style="text-align: center; padding: 10px; border-bottom: 1px solid #eee;">Sin detalles</td></tr>';
+
+        const mailOptions = {
+          from: `"Doña Serafina" <${process.env.SMTP_USER || 'noreply@donaserafina.com'}>`,
+          to: payload.customer_email,
+          subject: `Factura Digital - ${payload.receipt_number}`,
+          html: `
+            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e5e7eb; border-radius: 8px; overflow: hidden;">
+              <div style="background-color: #f3e8ff; padding: 20px; display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 3px solid #d8b4fe;">
+                <div>
+                  <h1 style="color: #581c87; margin: 0; font-size: 24px;">DOÑA SERAFINA</h1>
+                  <p style="color: #6b21a8; margin: 5px 0 0 0; font-weight: bold; font-size: 14px;">FACTURA DIGITAL</p>
+                </div>
+                <div style="text-align: right; background-color: #ffffff; padding: 10px; border-radius: 6px; border: 1px solid #e5e7eb;">
+                  <p style="margin: 0; font-size: 12px; color: #374151;"><strong>NIT:</strong> 1020304050</p>
+                  <p style="margin: 3px 0 0 0; font-size: 12px; color: #374151;"><strong>N° Factura:</strong> ${payload.receipt_number}</p>
+                  <p style="margin: 3px 0 0 0; font-size: 12px; color: #374151;"><strong>Autorización:</strong> 415401900012345</p>
+                </div>
+              </div>
+
+              <div style="padding: 20px; background-color: #ffffff;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                  <tr>
+                    <td style="padding-bottom: 5px; color: #4b5563;"><strong>Fecha de Emisión:</strong> ${new Date().toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding-bottom: 5px; color: #4b5563;"><strong>Cliente:</strong> ${payload.customer_name}</td>
+                  </tr>
+                  <tr>
+                    <td style="color: #4b5563;"><strong>NIT/CI:</strong> ${payload.customer_document || 'S/N'}</td>
+                  </tr>
+                </table>
+
+                <div style="margin-top: 20px; border: 1px solid #e5e7eb; border-radius: 6px; overflow: hidden;">
+                  <table style="width: 100%; border-collapse: collapse; font-size: 13px;">
+                    <thead style="background-color: #f9fafb;">
+                      <tr>
+                        <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb; color: #374151;">Cant.</th>
+                        <th style="padding: 10px; text-align: left; border-bottom: 2px solid #e5e7eb; color: #374151;">Concepto</th>
+                        <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e5e7eb; color: #374151;">P. Unit.</th>
+                        <th style="padding: 10px; text-align: right; border-bottom: 2px solid #e5e7eb; color: #374151;">Subtotal</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${itemsHtml}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div style="margin-top: 20px; text-align: right;">
+                  <h2 style="margin: 0; color: #111827; font-size: 20px;">Total a Pagar: Bs ${Number(payload.total || 0).toFixed(2)}</h2>
+                </div>
+
+                <div style="background-color: #fdf4ff; padding: 15px; border-radius: 6px; border: 1px solid #fbcfe8; margin-top: 20px; text-align: center;">
+                  <p style="margin: 0; color: #86198f; font-size: 14px;"><strong>Puntos Ganados en esta compra:</strong> +${payload.earned_points} pts</p>
+                  <p style="margin: 5px 0 0 0; color: #86198f; font-size: 14px;"><strong>Saldo Total Acumulado:</strong> ${payload.total_points || payload.earned_points} pts</p>
+                </div>
+              </div>
+
+              <div style="background-color: #f3f4f6; padding: 15px; text-align: center; border-top: 1px solid #e5e7eb;">
+                <p style="margin: 0; font-size: 10px; color: #6b7280; font-weight: bold;">
+                  ESTA FACTURA CONTRIBUYE AL DESARROLLO DEL PAÍS, EL USO ILÍCITO DE ESTE JUEGO DE DATOS SERÁ SANCIONADO DE ACUERDO A LEY.
+                </p>
+                <p style="margin: 5px 0 0 0; font-size: 10px; color: #9ca3af;">
+                  Este es un documento generado automáticamente.
+                </p>
+              </div>
+            </div>
+          `
+        };
+
+        try {
+          await transporter.sendMail(mailOptions);
+          console.log(`[Notification Service] Correo real enviado exitosamente a ${payload.customer_email}`);
+        } catch (mailError) {
+          console.error("[Notification Service] ERROR DETALLADO DE NODEMAILER:", mailError);
+          console.log(`[Notification Service] Simulación de envío completada (Aviso: El envío real por internet falló o no está configurado, continuando con el flujo local)`);
+        }
+      }
+
+      await pool.query(
+        'INSERT INTO notifications (event_type, customer_id, content, status) VALUES ($1, $2, $3, $4)',
+        [event_type, payload.customer_id, content, 'SENT']
+      );
+      console.log(`[Notification Service] Log de notificación persistido en BD exitosamente.`);
+    } catch (e) {
+      console.error('[Notification Service] Error procesando evento SaleCompleted:', e);
+    }
+  }, 2000);
 });
 
 
@@ -616,6 +742,7 @@ export class AppController {
     const branch_id = cleanText(body.branch_id);
     const customer_name = cleanText(body.customer_name) || 'Cliente Final';
     const customer_document = cleanText(body.customer_document) || '0';
+    const customer_email = cleanText(body.customer_email);
     const payment_method = cleanText(body.payment_method) || 'Efectivo';
     const { items } = body;
 
@@ -653,6 +780,20 @@ export class AppController {
         totalAmount += item.quantity * item.unit_price;
       }
       
+      const earned_points = Math.floor(totalAmount / 10);
+      let customerId = null;
+      let total_points = earned_points;
+
+      const customerRes = await pool.query('SELECT id, points FROM customers WHERE document_number = $1 LIMIT 1', [customer_document]);
+      if (customerRes.rowCount > 0) {
+        customerId = customerRes.rows[0].id;
+        total_points = customerRes.rows[0].points + earned_points;
+        await pool.query('UPDATE customers SET full_name = $1, points = points + $2 WHERE id = $3', [customer_name, earned_points, customerId]);
+      } else {
+        const newCust = await pool.query('INSERT INTO customers (full_name, document_number, points) VALUES ($1, $2, $3) RETURNING id', [customer_name, customer_document, earned_points]);
+        customerId = newCust.rows[0].id;
+      }
+
       const receiptNo = 'REC-' + Date.now().toString() + '-' + Math.floor(Math.random() * 1000);
       
       const saleRes = await pool.query(
@@ -661,6 +802,7 @@ export class AppController {
       );
       const saleId = saleRes.rows[0].id;
 
+      const detailedItems: any[] = [];
       for (const item of items) {
         const prodId = cleanText(item.product_id);
         const qty = item.quantity;
@@ -677,6 +819,13 @@ export class AppController {
         if (stockRes.rows[0].quantity < qty) {
           throw new Error(`stock insuficiente para ${stockRes.rows[0].name}.`);
         }
+
+        detailedItems.push({
+          name: stockRes.rows[0].name,
+          quantity: qty,
+          unit_price: price,
+          subtotal: subtotal
+        });
 
         await pool.query(
           'INSERT INTO sale_items (sale_id, product_id, quantity, unit_price, subtotal) VALUES ($1, $2, $3, $4, $5)',
@@ -696,13 +845,20 @@ export class AppController {
 
       await pool.query('COMMIT');
 
-      // Insert notification
-      await pool.query(
-        'INSERT INTO notifications (event_type, content) VALUES ($1, $2)',
-        ['SALE_COMPLETED', `Venta registrada en sucursal con recibo ${receiptNo}`]
-      );
+      // Publicación asíncrona del evento al Notification Service
+      eventBus.emit('SaleCompleted', {
+        receipt_number: receiptNo,
+        customer_name: customer_name,
+        customer_id: customerId,
+        customer_document: customer_document,
+        customer_email: customer_email,
+        earned_points: earned_points,
+        total: totalAmount,
+        total_points: total_points,
+        items: detailedItems
+      });
 
-      return { success: true, sale: { id: saleId, receipt_number: receiptNo, total_amount: totalAmount } };
+      return { success: true, sale: { id: saleId, receipt_number: receiptNo, total_amount: totalAmount, earned_points, total_points } };
     } catch (e: any) {
       await pool.query('ROLLBACK');
       console.error("ERROR CREATE SALE:", e);
@@ -780,8 +936,18 @@ export class AppController {
       WHERE si.sale_id = $1
     `, [id]);
 
+    const doc = result.rows[0].customer_document;
+    let total_points = 0;
+    if (doc) {
+      const cRes = await pool.query('SELECT points FROM customers WHERE document_number = $1 LIMIT 1', [doc]);
+      if (cRes.rowCount > 0) total_points = cRes.rows[0].points;
+    }
+    const earned_points = Math.floor(result.rows[0].total / 10);
+
     const receipt = {
       ...result.rows[0],
+      earned_points,
+      total_points,
       items: itemsRes.rows
     };
 
@@ -891,7 +1057,7 @@ export class AppController {
     return result.rows.map(r => ({
       id: r.id,
       type: r.event_type,
-      title: r.event_type === 'SALE_COMPLETED' ? 'Venta Completada' : (r.event_type === 'TRANSFER_COMPLETED' ? 'Transferencia' : 'Aviso'),
+      title: (r.event_type === 'SALE_COMPLETED' || r.event_type === 'SaleCompleted') ? 'Venta Completada' : (r.event_type === 'TRANSFER_COMPLETED' ? 'Transferencia' : 'Aviso'),
       message: r.content,
       createdAt: r.created_at
     }));

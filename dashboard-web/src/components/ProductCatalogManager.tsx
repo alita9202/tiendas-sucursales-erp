@@ -25,9 +25,9 @@ export default function ProductCatalogManager() {
     category: 'Abarrotes',
     brand: '',
     unit: 'Unidad',
-    purchasePrice: 0,
-    marginPercent: 20,
-    price: 0,
+    purchasePrice: '' as number | string,
+    marginPercent: 20 as number | string,
+    price: '' as number | string,
   });
 
   const normalizeProduct = (p: any): ProductItem => ({
@@ -72,7 +72,7 @@ export default function ProductCatalogManager() {
   };
 
   const handleCalculatePrice = () => {
-    const calculated = calculatePrice(formData.purchasePrice, formData.marginPercent);
+    const calculated = calculatePrice(Number(formData.purchasePrice), Number(formData.marginPercent));
 
     if (calculated <= 0) {
       alert('Ingrese un costo de compra mayor a 0 y un margen válido.');
@@ -89,9 +89,9 @@ export default function ProductCatalogManager() {
       category: 'Abarrotes',
       brand: '',
       unit: 'Unidad',
-      purchasePrice: 0,
-      marginPercent: 20,
-      price: 0,
+      purchasePrice: '' as number | string,
+      marginPercent: 20 as number | string,
+      price: '' as number | string,
     });
     setEditingProduct(null);
     setShowProductForm(false);
@@ -103,14 +103,14 @@ export default function ProductCatalogManager() {
     const brand = formData.brand.trim();
     const category = formData.category.trim();
     const unit = formData.unit.trim();
-    const price = calculatePrice(formData.purchasePrice, formData.marginPercent) || formData.price;
+    const price = calculatePrice(Number(formData.purchasePrice), Number(formData.marginPercent)) || Number(formData.price);
 
     if (!code || !name || !brand || !category || !unit) {
       alert('Debe completar código, producto, categoría, marca y unidad.');
       return null;
     }
 
-    if (formData.purchasePrice < 0 || formData.marginPercent < 0) {
+    if (Number(formData.purchasePrice) < 0 || Number(formData.marginPercent) < 0) {
       alert('El costo de compra y margen no pueden ser negativos.');
       return null;
     }
@@ -225,11 +225,20 @@ export default function ProductCatalogManager() {
       category: product.category,
       brand: product.brand,
       unit: product.unit,
-      purchasePrice: 0,
+      purchasePrice: '',
       marginPercent: 20,
       price: product.price,
     });
     setShowProductForm(true);
+    
+    // Auto-scroll al formulario
+    setTimeout(() => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      const container = document.querySelector('.overflow-y-auto');
+      if (container) {
+        container.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+    }, 50);
   };
 
   const toggleProductStatus = async (productId: string) => {
@@ -417,9 +426,10 @@ export default function ProductCatalogManager() {
                   step="0.01"
                   value={formData.purchasePrice}
                   onChange={e => {
-                    const purchasePrice = Number(e.target.value);
-                    const price = calculatePrice(purchasePrice, formData.marginPercent);
-                    setFormData({ ...formData, purchasePrice, price });
+                    const val = e.target.value;
+                    const purchasePrice = val === '' ? '' : Number(val);
+                    const price = calculatePrice(Number(purchasePrice), Number(formData.marginPercent));
+                    setFormData({ ...formData, purchasePrice, price: price || '' });
                   }}
                   placeholder="Ej: 15.00"
                   className="w-full mt-1 bg-surface border border-outline-variant/30 rounded-lg px-3 py-2 text-sm"
@@ -433,9 +443,10 @@ export default function ProductCatalogManager() {
                   step="0.01"
                   value={formData.marginPercent}
                   onChange={e => {
-                    const marginPercent = Number(e.target.value);
-                    const price = calculatePrice(formData.purchasePrice, marginPercent);
-                    setFormData({ ...formData, marginPercent, price });
+                    const val = e.target.value;
+                    const marginPercent = val === '' ? '' : Number(val);
+                    const price = calculatePrice(Number(formData.purchasePrice), Number(marginPercent));
+                    setFormData({ ...formData, marginPercent, price: price || '' });
                   }}
                   placeholder="Ej: 20"
                   className="w-full mt-1 bg-surface border border-outline-variant/30 rounded-lg px-3 py-2 text-sm"
@@ -448,7 +459,10 @@ export default function ProductCatalogManager() {
                   type="number"
                   step="0.01"
                   value={formData.price}
-                  onChange={e => setFormData({ ...formData, price: Number(e.target.value) })}
+                  onChange={e => {
+                    const val = e.target.value;
+                    setFormData({ ...formData, price: val === '' ? '' : Number(val) });
+                  }}
                   placeholder="Ej: 18.00"
                   className="w-full mt-1 bg-surface border border-outline-variant/30 rounded-lg px-3 py-2 text-sm"
                 />

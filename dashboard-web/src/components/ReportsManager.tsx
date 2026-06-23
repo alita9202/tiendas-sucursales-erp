@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { BarChart2, Download, RefreshCw, FileText, FileSpreadsheet } from 'lucide-react';
 import * as XLSX from 'xlsx';
 
@@ -27,6 +27,7 @@ export default function ReportsManager() {
   const [stockReport, setStockReport] = useState<StockRow[]>([]);
   const [salesReport, setSalesReport] = useState<SalesRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [expandedProducts, setExpandedProducts] = useState<Record<string, boolean>>({});
 
   const fetchReports = async () => {
     setLoading(true);
@@ -295,45 +296,104 @@ export default function ReportsManager() {
                   <thead>
                     <tr className="bg-surface-container-high/50 border-b border-outline-variant/20 text-secondary">
                       <th className="p-3">Producto</th>
-                      <th className="p-3">Empresa</th>
-                      <th className="p-3">Sucursal</th>
-                      <th className="p-3 text-right">Stock</th>
-                      <th className="p-3 text-center">Estado</th>
+                      <th className="p-3">Código</th>
+                      <th className="p-3 text-right">Saldo Total</th>
+                      <th className="p-3 text-center">Acciones</th>
                     </tr>
                   </thead>
 
                   <tbody className="divide-y divide-outline-variant/10">
-                    {stockReport.length > 0 ? stockReport.map((item, i) => (
-                      <tr key={i} className="hover:bg-surface-container-high/30">
-                        <td className="p-3 font-medium text-on-surface">
-                          {item.product_name}
-                          <div className="text-xs text-secondary font-mono">{item.product_code}</div>
-                        </td>
-                        <td className="p-3">{item.company_name}</td>
-                        <td className="p-3 text-secondary">
-                          {item.branch_name}
-                          <div className="text-xs">{item.city}</div>
-                        </td>
-                        <td className="p-3 text-right font-bold">{item.total_stock}</td>
-                        <td className="p-3 text-center">
-                          <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                            item.stock_status === 'OUT_OF_STOCK'
-                              ? 'bg-red-100 text-red-700'
-                              : item.stock_status === 'LOW_STOCK'
-                              ? 'bg-orange-100 text-orange-700'
-                              : 'bg-green-100 text-green-700'
-                          }`}>
-                            {item.stock_status}
-                          </span>
-                        </td>
-                      </tr>
-                    )) : (
-                      <tr>
-                        <td colSpan={5} className="p-6 text-center text-secondary">
-                          No hay datos de stock.
-                        </td>
-                      </tr>
-                    )}
+                    {(() => {
+                      const groupedStock = stockReport.reduce((acc: Record<string, any>, item) => {
+                        if (!acc[item.product_name]) {
+                          acc[item.product_name] = {
+                            product_name: item.product_name,
+                            product_code: item.product_code,
+                            total: 0,
+                            branches: []
+                          };
+                        }
+                        acc[item.product_name].total += item.total_stock;
+                        acc[item.product_name].branches.push(item);
+                        return acc;
+                      }, {});
+
+                      const groupedArray = Object.values(groupedStock);
+
+                      if (groupedArray.length === 0) {
+                        return (
+                          <tr>
+                            <td colSpan={4} className="p-6 text-center text-secondary">
+                              No hay datos de stock.
+                            </td>
+                          </tr>
+                        );
+                      }
+
+                      return groupedArray.map((group: any, i: number) => (
+                        <React.Fragment key={i}>
+                          <tr className="hover:bg-surface-container-high/30 bg-surface">
+                            <td className="p-3 font-bold text-on-surface text-base">
+                              {group.product_name}
+                            </td>
+                            <td className="p-3 text-secondary font-mono">
+                              {group.product_code}
+                            </td>
+                            <td className="p-3 text-right font-bold text-lg text-primary">
+                              {group.total}
+                            </td>
+                            <td className="p-3 text-center">
+                              <button
+                                onClick={() => setExpandedProducts(prev => ({ ...prev, [group.product_name]: !prev[group.product_name] }))}
+                                className="text-xs font-bold text-primary bg-primary/10 hover:bg-primary/20 px-3 py-1.5 rounded-full transition-colors"
+                              >
+                                {expandedProducts[group.product_name] ? 'Ocultar Detalle' : 'Ver Detalle'}
+                              </button>
+                            </td>
+                          </tr>
+                          
+                          {expandedProducts[group.product_name] && (
+                            <tr>
+                              <td colSpan={4} className="p-0 bg-surface-container-low/30 border-b-4 border-outline-variant/20">
+                                <div className="p-4 pl-12 border-l-4 border-primary/50">
+                                  <h4 className="text-xs font-bold text-secondary uppercase mb-2">Desglose por Sucursal</h4>
+                                  <table className="w-full text-sm text-left">
+                                    <thead>
+                                      <tr className="text-secondary border-b border-outline-variant/10">
+                                        <th className="pb-2 font-medium">Sucursal</th>
+                                        <th className="pb-2 font-medium">Compañía</th>
+                                        <th className="pb-2 font-medium text-right">Existencias</th>
+                                        <th className="pb-2 font-medium text-center">Estado</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-outline-variant/5">
+                                      {group.branches.map((b: any, j: number) => (
+                                        <tr key={j}>
+                                          <td className="py-2 text-on-surface">{b.branch_name} <span className="text-xs text-secondary">({b.city})</span></td>
+                                          <td className="py-2 text-secondary">{b.company_name}</td>
+                                          <td className="py-2 text-right font-bold">{b.total_stock}</td>
+                                          <td className="py-2 text-center">
+                                            <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                              b.stock_status === 'OUT_OF_STOCK'
+                                                ? 'bg-red-100 text-red-700'
+                                                : b.stock_status === 'LOW_STOCK'
+                                                ? 'bg-orange-100 text-orange-700'
+                                                : 'bg-green-100 text-green-700'
+                                            }`}>
+                                              {b.stock_status}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      ));
+                    })()}
                   </tbody>
                 </table>
               </div>

@@ -198,7 +198,7 @@ export default function CompaniesBranchesManager() {
 
   // --- ELIMINAR EMPRESA ---
   const handleDeleteCompany = async (id: string, name: string) => {
-    if (!window.confirm(`¿Estás seguro de eliminar el supermercado "${name}"? \n\nTen en cuenta que no podrás eliminarlo si aún tiene sucursales registradas.`)) return;
+    if (!window.confirm(`¿Estás seguro de eliminar la compañía "${name}"? \n\nTen en cuenta que no podrás eliminarla si aún tiene sucursales registradas.`)) return;
     
     try {
       const res = await fetch(`/api/companies/${id}`, { method: 'DELETE' });
@@ -238,14 +238,14 @@ export default function CompaniesBranchesManager() {
         <header className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold text-on-surface">Empresas y Sucursales</h1>
-            <p className="text-secondary mt-1">Gestión de supermercados y sus puntos de venta.</p>
+            <p className="text-secondary mt-1">Gestión de compañías y sus puntos de venta.</p>
           </div>
           <button 
             onClick={() => setIsCompanyModalOpen(true)}
             className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors"
           >
             <Plus className="w-5 h-5" />
-            Nuevo Supermercado
+            Nueva Compañía
           </button>
         </header>
 
@@ -253,7 +253,7 @@ export default function CompaniesBranchesManager() {
           <div className="bg-gray-100 dark:bg-zinc-800 p-6 rounded-xl flex flex-col items-center justify-center text-center">
             <Building2 className="w-8 h-8 text-blue-600 mb-2" />
             <h3 className="text-3xl font-bold">{companies.length}</h3>
-            <p className="text-sm text-secondary">Total Supermercados</p>
+            <p className="text-sm text-secondary">Total Compañías</p>
           </div>
           <div className="bg-gray-100 dark:bg-zinc-800 p-6 rounded-xl flex flex-col items-center justify-center text-center">
             <MapPin className="w-8 h-8 text-blue-600 mb-2" />
@@ -369,7 +369,7 @@ export default function CompaniesBranchesManager() {
             <div className="bg-white dark:bg-zinc-900 rounded-xl max-w-md w-full p-6 space-y-4 shadow-xl">
               <div className="flex justify-between items-center">
                 <h2 className="text-xl font-bold">
-                  {isEditingCompany ? 'Editar Supermercado' : 'Registrar Supermercado'}
+                  {isEditingCompany ? 'Editar Compañía' : 'Registrar Compañía'}
                 </h2>
                 <button onClick={closeCompanyModal}><X className="w-5 h-5" /></button>
               </div>

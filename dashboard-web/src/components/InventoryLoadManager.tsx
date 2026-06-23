@@ -28,9 +28,9 @@ export default function InventoryLoadManager() {
   const [formData, setFormData] = useState({
     branch_id: '',
     product_id: '',
-    initial_stock: 100,
-    max_stock: 500,
-    target_min_stock: 10,
+    initial_stock: 100 as number | string,
+    max_stock: 500 as number | string,
+    target_min_stock: 10 as number | string,
     lot_code: 'LOTE-INI-001',
     expiration_date: '2026-12-31',
   });
@@ -74,7 +74,7 @@ export default function InventoryLoadManager() {
       return;
     }
 
-    if (formData.initial_stock < 0 || formData.target_min_stock < 0 || formData.max_stock < 0) {
+    if (Number(formData.initial_stock) < 0 || Number(formData.target_min_stock) < 0 || Number(formData.max_stock) < 0) {
       alert('Las cantidades no pueden ser negativas.');
       return;
     }
@@ -86,8 +86,8 @@ export default function InventoryLoadManager() {
         body: JSON.stringify({
           branch_id: formData.branch_id,
           product_id: formData.product_id,
-          initial_stock: formData.initial_stock,
-          target_min_stock: formData.target_min_stock,
+          initial_stock: Number(formData.initial_stock),
+          target_min_stock: Number(formData.target_min_stock),
         }),
       });
 
@@ -574,7 +574,10 @@ export default function InventoryLoadManager() {
                   <input
                     type="number"
                     value={formData.initial_stock}
-                    onChange={e => setFormData({ ...formData, initial_stock: +e.target.value })}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData({ ...formData, initial_stock: val === '' ? '' : Number(val) });
+                    }}
                     className="w-full bg-surface border border-outline-variant/30 rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
@@ -584,7 +587,10 @@ export default function InventoryLoadManager() {
                   <input
                     type="number"
                     value={formData.max_stock}
-                    onChange={e => setFormData({ ...formData, max_stock: +e.target.value })}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData({ ...formData, max_stock: val === '' ? '' : Number(val) });
+                    }}
                     className="w-full bg-surface border border-outline-variant/30 rounded-lg px-3 py-2 text-sm"
                   />
                 </div>
@@ -594,7 +600,10 @@ export default function InventoryLoadManager() {
                   <input
                     type="number"
                     value={formData.target_min_stock}
-                    onChange={e => setFormData({ ...formData, target_min_stock: +e.target.value })}
+                    onChange={e => {
+                      const val = e.target.value;
+                      setFormData({ ...formData, target_min_stock: val === '' ? '' : Number(val) });
+                    }}
                     className="w-full bg-surface border border-outline-variant/30 rounded-lg px-3 py-2 text-sm"
                   />
                 </div>

@@ -1,4 +1,4 @@
-import { Building2, MapPin, Package, Boxes, CreditCard, ArrowRightLeft, Bell, ClipboardCheck, ArrowRight, TrendingUp } from 'lucide-react';
+import { Building2, MapPin, Package, Boxes, CreditCard, ArrowRightLeft, Bell, ArrowRight, TrendingUp } from 'lucide-react';
 import { Transaction } from '../types';
 import { TabId } from './SideNavBar';
 
@@ -10,26 +10,24 @@ interface ExecutiveDashboardProps {
 export default function ExecutiveDashboard({ transactions, setActiveTab }: ExecutiveDashboardProps) {
   
   const demoFlow = [
-    { id: 'companies', label: 'Empresas y Sucursales', icon: Building2, desc: 'Registrar supermercados y sus sucursales (ej. OXXO Prado).' },
+    { id: 'companies', label: 'Empresas y Sucursales', icon: Building2, desc: 'Registrar compañías y sus sucursales (ej. Empresa Matriz).' },
     { id: 'products', label: 'Productos y Categorías', icon: Package, desc: 'Gestionar el catálogo central de productos.' },
     { id: 'inventory-load', label: 'Carga de Inventario', icon: Boxes, desc: 'Ingreso inicial de mercadería manual o Excel.' },
     { id: 'inventory', label: 'Inventario', icon: Boxes, desc: 'Monitorear stock y kardex por sucursal.' },
     { id: 'pos', label: 'Ventas / Punto de Venta', icon: CreditCard, desc: 'Simular transacciones y emitir comprobantes.' },
     { id: 'transfers', label: 'Transferencias', icon: ArrowRightLeft, desc: 'Mover stock entre diferentes sucursales.' },
     { id: 'reports', label: 'Reportes', icon: TrendingUp, desc: 'Ver consolidado de ventas e inventario.' },
-    { id: 'notifications', label: 'Notificaciones', icon: Bell, desc: 'Monitorear eventos en tiempo real (RabbitMQ).' },
-    { id: 'checklist', label: 'Checklist de Defensa', icon: ClipboardCheck, desc: 'Revisar pendientes del equipo de desarrollo.' },
+    { id: 'notifications', label: 'Notificaciones', icon: Bell, desc: 'Monitorear eventos asíncronos en tiempo real.' },
   ];
 
   const metrics = [
-    { label: 'Supermercados', value: '4', icon: Building2, color: 'text-blue-500' },
+    { label: 'Compañías', value: '4', icon: Building2, color: 'text-blue-500' },
     { label: 'Sucursales', value: '6', icon: MapPin, color: 'text-indigo-500' },
     { label: 'Productos', value: '6', icon: Package, color: 'text-purple-500' },
     { label: 'Stock Total', value: '201', icon: Boxes, color: 'text-orange-500' },
     { label: 'Ventas (Hoy)', value: 'Bs 495.50', icon: CreditCard, color: 'text-green-500' },
     { label: 'Transferencias', value: '1', icon: ArrowRightLeft, color: 'text-teal-500' },
     { label: 'Notificaciones', value: '4', icon: Bell, color: 'text-yellow-500' },
-    { label: 'Avance Defensa', value: '1/9', icon: ClipboardCheck, color: 'text-red-500' },
   ];
 
   return (
