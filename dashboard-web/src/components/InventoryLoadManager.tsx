@@ -10,6 +10,7 @@ type PreviewRow = {
   lote: string;
   cantidad: number;
   stock_minimo: number;
+  stock_maximo: number;
   costo: number;
   precio: number;
   status: 'Válido' | 'Revisar';
@@ -74,8 +75,38 @@ export default function InventoryLoadManager() {
       return;
     }
 
-    if (Number(formData.initial_stock) < 0 || Number(formData.target_min_stock) < 0 || Number(formData.max_stock) < 0) {
-      alert('Las cantidades no pueden ser negativas.');
+    const initial = Number(formData.initial_stock);
+    const min = Number(formData.target_min_stock);
+    const max = Number(formData.max_stock);
+    const MAX_STOCK_PER_LOT = 10000;
+
+    if (Number.isNaN(initial) || initial <= 0 || !Number.isInteger(initial)) {
+      alert('La cantidad inicial debe ser un número entero mayor a cero.');
+      return;
+    }
+
+    if (Number.isNaN(min) || min < 0 || !Number.isInteger(min)) {
+      alert('El stock mínimo debe ser un número entero mayor o igual a cero.');
+      return;
+    }
+
+    if (Number.isNaN(max) || max <= 0 || !Number.isInteger(max)) {
+      alert('El stock máximo debe ser un número entero mayor a cero.');
+      return;
+    }
+
+    if (initial > MAX_STOCK_PER_LOT || min > MAX_STOCK_PER_LOT || max > MAX_STOCK_PER_LOT) {
+      alert('No se puede registrar el lote. La cantidad supera el límite permitido de inventario.');
+      return;
+    }
+
+    if (min > max) {
+      alert('El stock mínimo no puede ser mayor al stock máximo.');
+      return;
+    }
+
+    if (initial > max) {
+      alert('La cantidad inicial no puede superar el stock máximo.');
       return;
     }
 
@@ -86,8 +117,9 @@ export default function InventoryLoadManager() {
         body: JSON.stringify({
           branch_id: formData.branch_id,
           product_id: formData.product_id,
-          initial_stock: Number(formData.initial_stock),
-          target_min_stock: Number(formData.target_min_stock),
+          initial_stock: initial,
+          target_min_stock: min,
+          max_stock: max,
         }),
       });
 
@@ -129,6 +161,7 @@ export default function InventoryLoadManager() {
     lote: String(row.lote ?? row.Lote ?? row.LOTE ?? '').trim(),
     cantidad: row.cantidad ?? row.Cantidad ?? row.CANTIDAD ?? '',
     stock_minimo: row.stock_minimo ?? row.Stock_Minimo ?? row.STOCK_MINIMO ?? '',
+    stock_maximo: row.stock_maximo ?? row.Stock_Maximo ?? row.STOCK_MAXIMO ?? '',
     costo: row.costo ?? row.Costo ?? row.COSTO ?? '',
     precio: row.precio ?? row.Precio ?? row.PRECIO ?? '',
   });
@@ -142,18 +175,30 @@ export default function InventoryLoadManager() {
 
       const cantidad = Number(row.cantidad);
       const stockMinimo = Number(row.stock_minimo);
+      const stockMaximo = Number(row.stock_maximo);
       const costo = Number(row.costo);
       const precio = Number(row.precio);
+      const MAX_STOCK_PER_LOT = 10000;
 
       const errors = [];
 
       if (!row.codigo_producto) errors.push('Código de producto vacío');
       if (!row.producto) errors.push('Producto vacío');
       if (!row.sucursal) errors.push('Sucursal vacía');
-      if (!product) errors.push('Producto no existe o está inactivo');
+      if (!product) errors.push('Producto no encontrado');
       if (!branch) errors.push('Sucursal no encontrada');
-      if (Number.isNaN(cantidad) || cantidad < 0) errors.push('Cantidad inválida');
-      if (Number.isNaN(stockMinimo) || stockMinimo < 0) errors.push('Stock mínimo inválido');
+      
+      if (Number.isNaN(cantidad) || cantidad <= 0 || !Number.isInteger(cantidad)) errors.push('Cantidad inválida');
+      if (Number.isNaN(stockMinimo) || stockMinimo < 0 || !Number.isInteger(stockMinimo)) errors.push('Stock mínimo inválido');
+      if (Number.isNaN(stockMaximo) || stockMaximo <= 0 || !Number.isInteger(stockMaximo)) errors.push('Stock máximo inválido');
+      
+      if (cantidad > MAX_STOCK_PER_LOT || stockMinimo > MAX_STOCK_PER_LOT || stockMaximo > MAX_STOCK_PER_LOT) {
+        errors.push('Cantidad supera el límite permitido');
+      }
+      
+      if (stockMinimo > stockMaximo) errors.push('Stock mínimo mayor al stock máximo');
+      if (cantidad > stockMaximo) errors.push('Cantidad inicial supera el stock máximo');
+
       if (Number.isNaN(costo) || costo < 0) errors.push('Costo inválido');
       if (Number.isNaN(precio) || precio <= 0) errors.push('Precio inválido');
 
@@ -165,10 +210,11 @@ export default function InventoryLoadManager() {
         lote: row.lote,
         cantidad,
         stock_minimo: stockMinimo,
+        stock_maximo: stockMaximo,
         costo,
         precio,
         status: errors.length === 0 ? 'Válido' : 'Revisar',
-        message: errors.length === 0 ? 'Listo para importar' : errors.join(', '),
+        message: errors.length === 0 ? 'Listo para importar' : errors.join('. '),
         product_id: product?.id,
         branch_id: branch?.id,
       };
@@ -195,6 +241,7 @@ export default function InventoryLoadManager() {
       'lote',
       'cantidad',
       'stock_minimo',
+      'stock_maximo',
       'costo',
       'precio',
     ];
@@ -301,6 +348,7 @@ export default function InventoryLoadManager() {
             product_id: row.product_id,
             initial_stock: row.cantidad,
             target_min_stock: row.stock_minimo,
+            max_stock: row.stock_maximo,
           }),
         });
 
@@ -328,6 +376,7 @@ export default function InventoryLoadManager() {
       lote: 'LOTE-INI-001',
       cantidad: 100,
       stock_minimo: 10,
+      stock_maximo: 500,
       costo: 15.0,
       precio: 18.5,
     },
@@ -339,13 +388,14 @@ export default function InventoryLoadManager() {
       lote: 'LOTE-MAY-001',
       cantidad: 50,
       stock_minimo: 5,
+      stock_maximo: 100,
       costo: 1.5,
       precio: 2.0,
     },
   ];
 
   const downloadTemplateCsv = () => {
-    const headers = 'codigo_producto;producto;empresa;sucursal;lote;cantidad;stock_minimo;costo;precio\n';
+    const headers = 'codigo_producto;producto;empresa;sucursal;lote;cantidad;stock_minimo;stock_maximo;costo;precio\n';
 
     const rows = templateRows.map(row => [
       row.codigo_producto,
@@ -355,6 +405,7 @@ export default function InventoryLoadManager() {
       row.lote,
       row.cantidad,
       row.stock_minimo,
+      row.stock_maximo,
       row.costo.toFixed(2),
       row.precio.toFixed(2),
     ].join(';')).join('\n');
@@ -656,7 +707,7 @@ export default function InventoryLoadManager() {
 
             <div className="mt-4 bg-surface rounded-lg border border-outline-variant/20 p-4 text-xs text-secondary space-y-1">
               <p className="font-bold text-on-surface mb-2">Columnas requeridas:</p>
-              <p>codigo_producto, producto, empresa, sucursal, lote, cantidad, stock_minimo, costo, precio</p>
+              <p>codigo_producto, producto, empresa, sucursal, lote, cantidad, stock_minimo, stock_maximo, costo, precio</p>
             </div>
 
             <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -730,6 +781,7 @@ export default function InventoryLoadManager() {
                   <th className="p-4">Lote</th>
                   <th className="p-4 text-right">Cantidad</th>
                   <th className="p-4 text-right">Mínimo</th>
+                  <th className="p-4 text-right">Máximo</th>
                   <th className="p-4 text-right">Costo</th>
                   <th className="p-4 text-right">Precio</th>
                   <th className="p-4 text-center">Validación</th>
@@ -752,6 +804,7 @@ export default function InventoryLoadManager() {
                     <td className="p-4 font-mono">{row.lote}</td>
                     <td className="p-4 text-right font-medium">{row.cantidad}</td>
                     <td className="p-4 text-right">{row.stock_minimo}</td>
+                    <td className="p-4 text-right">{row.stock_maximo}</td>
                     <td className="p-4 text-right">Bs {Number(row.costo || 0).toFixed(2)}</td>
                     <td className="p-4 text-right text-green-600">Bs {Number(row.precio || 0).toFixed(2)}</td>
                     <td className="p-4 text-center">

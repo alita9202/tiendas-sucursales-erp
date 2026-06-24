@@ -21,6 +21,14 @@ export default function InventoryManager({
   const [selectedKardexItem, setSelectedKardexItem] = useState<any | null>(null);
   const [showKardexModal, setShowKardexModal] = useState(false);
 
+  const [showOutputModal, setShowOutputModal] = useState(false);
+  const [outputItem, setOutputItem] = useState<any>(null);
+  const [outputData, setOutputData] = useState({
+    quantity: 1,
+    reason: 'Producto dañado',
+    notes: ''
+  });
+
   const fetchInventory = async () => {
     try {
       const res = await fetch('/api/inventory');
@@ -133,7 +141,7 @@ export default function InventoryManager({
     }
   };
 
-  const handleOutput = async (item: any) => {
+  const handleOpenOutput = (item: any) => {
     if (!item.branchId || !item.productId) {
       alert('No se puede registrar baja: faltan branch_id o product_id en la vista de inventario.');
       return;
@@ -144,46 +152,51 @@ export default function InventoryManager({
       return;
     }
 
-    const qtyText = prompt(
-      `Cantidad a dar de baja para ${item.product} en ${item.branch}.\nDisponible: ${item.quantity}`,
-      '1'
-    );
+    setOutputItem(item);
+    setOutputData({
+      quantity: 1,
+      reason: 'Producto dañado',
+      notes: ''
+    });
+    setShowOutputModal(true);
+  };
 
-    if (qtyText === null) return;
+  const submitOutput = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!outputItem) return;
 
-    const quantity = Number(qtyText);
-
+    const quantity = Number(outputData.quantity);
     if (Number.isNaN(quantity) || quantity <= 0 || !Number.isInteger(quantity)) {
-      alert('La cantidad debe ser un número entero mayor a 0.');
+      alert('La cantidad debe ser un número entero mayor a cero.');
       return;
     }
 
-    if (quantity > item.quantity) {
-      alert(`No puede dar de baja más del stock disponible. Disponible: ${item.quantity}`);
+    if (quantity > outputItem.quantity) {
+      alert('No se puede registrar la baja porque la cantidad supera el stock disponible.');
       return;
     }
 
-    const reason = prompt(
-      'Motivo de la baja:',
-      'Baja por pérdida o vencimiento'
-    );
-
-    if (reason === null) return;
+    if (!outputData.reason.trim()) {
+      alert('El motivo es obligatorio.');
+      return;
+    }
 
     try {
       const res = await fetch('/api/inventory/output', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          branch_id: item.branchId,
-          product_id: item.productId,
+          branch_id: outputItem.branchId,
+          product_id: outputItem.productId,
           quantity,
-          reason,
+          reason: outputData.reason,
+          notes: outputData.notes
         }),
       });
 
       if (res.ok) {
-        alert('Baja registrada correctamente.');
+        alert('Baja de inventario registrada correctamente.');
+        setShowOutputModal(false);
         fetchInventory();
       } else {
         const error = await res.json().catch(() => null);
@@ -362,7 +375,7 @@ export default function InventoryManager({
                             </button>
 
                             <button
-                              onClick={() => handleOutput(item)}
+                              onClick={() => handleOpenOutput(item)}
                               disabled={item.quantity <= 0}
                               className={`px-2 py-1.5 bg-surface border border-outline-variant/30 text-xs font-bold rounded transition-colors ${
                                 item.quantity <= 0
@@ -409,7 +422,7 @@ export default function InventoryManager({
                 <div className="relative pl-6">
                   <span className="absolute left-[3px] top-1.5 w-1.5 h-1.5 rounded-full bg-red-500 ring-4 ring-surface-container"></span>
                   <p className="text-xs font-bold text-on-surface">Baja - Pérdida/Vencimiento</p>
-                  <p className="text-[10px] text-secondary">Registrada mediante endpoint /api/inventory/output</p>
+                  <p className="text-[10px] text-secondary">Registro de salida y descuento de stock</p>
                   <span className="inline-block mt-1 text-xs font-mono font-bold text-red-600 bg-red-50 px-1 rounded">OUT</span>
                 </div>
 
@@ -506,6 +519,94 @@ export default function InventoryManager({
                   </tbody>
                 </table>
               </div>
+            </div>
+          </div>
+        )}
+
+        {showOutputModal && outputItem && (
+          <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-surface-container-lowest rounded-xl max-w-lg w-full p-6 shadow-2xl">
+              <div className="flex justify-between items-start mb-6 border-b border-outline-variant/20 pb-4">
+                <div>
+                  <h2 className="text-xl font-bold text-on-surface flex items-center gap-2">
+                    <AlertTriangle className="w-5 h-5 text-red-500" />
+                    Registrar Baja de Inventario
+                  </h2>
+                </div>
+                <button
+                  onClick={() => setShowOutputModal(false)}
+                  className="p-2 rounded bg-surface border border-outline-variant/20 text-secondary hover:text-red-500 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <form onSubmit={submitOutput} className="space-y-4">
+                <div className="bg-surface p-3 rounded-lg border border-outline-variant/20 text-sm">
+                  <p className="font-bold text-on-surface mb-1">Sucursal: <span className="font-normal text-secondary">{outputItem.branch}</span></p>
+                  <p className="font-bold text-on-surface mb-1">Producto: <span className="font-normal text-secondary">{outputItem.product}</span></p>
+                  <p className="font-bold text-on-surface">Disponible: <span className="font-normal text-primary">{outputItem.quantity} unidades</span></p>
+                  <p className="font-bold text-on-surface mt-1">Fecha: <span className="font-normal text-secondary">{new Date().toLocaleDateString()}</span></p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-on-surface mb-1">Cantidad a dar de baja</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={outputItem.quantity}
+                    required
+                    value={outputData.quantity}
+                    onChange={e => setOutputData({ ...outputData, quantity: Number(e.target.value) })}
+                    className="w-full bg-surface border border-outline-variant/30 rounded px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-on-surface mb-1">Motivo</label>
+                  <select
+                    value={outputData.reason}
+                    onChange={e => setOutputData({ ...outputData, reason: e.target.value })}
+                    required
+                    className="w-full bg-surface border border-outline-variant/30 rounded px-3 py-2 text-sm focus:border-red-500 focus:outline-none"
+                  >
+                    <option value="Producto dañado">Producto dañado</option>
+                    <option value="Producto vencido">Producto vencido</option>
+                    <option value="Producto defectuoso">Producto defectuoso</option>
+                    <option value="Merma">Merma</option>
+                    <option value="Pérdida">Pérdida</option>
+                    <option value="Ajuste de inventario">Ajuste de inventario</option>
+                    <option value="Otro">Otro</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-bold text-on-surface mb-1">Observación (Opcional)</label>
+                  <textarea
+                    value={outputData.notes}
+                    onChange={e => setOutputData({ ...outputData, notes: e.target.value })}
+                    placeholder="Escriba un detalle de la baja..."
+                    rows={2}
+                    className="w-full bg-surface border border-outline-variant/30 rounded px-3 py-2 text-sm focus:border-red-500 focus:outline-none resize-none"
+                  ></textarea>
+                </div>
+
+                <div className="flex justify-end gap-3 pt-4 border-t border-outline-variant/20">
+                  <button
+                    type="button"
+                    onClick={() => setShowOutputModal(false)}
+                    className="px-4 py-2 rounded font-bold text-sm bg-surface border border-outline-variant/30 hover:bg-surface-container text-on-surface transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded font-bold text-sm bg-red-600 hover:bg-red-700 text-white transition-colors"
+                  >
+                    Registrar Baja
+                  </button>
+                </div>
+              </form>
             </div>
           </div>
         )}

@@ -172,21 +172,32 @@ function calculateSalePrice(body: any): number {
   return Number(manualSalePrice);
 }
 
+function isSafeText(text: string): boolean {
+  if (!text) return true;
+  if (/[<>'";`\\]/.test(text)) return false;
+  if (text.includes('--')) return false;
+  return true;
+}
+
 function isValidName(name: string): boolean {
   if (!name || name.trim() === '') return false;
   if (/^\d+$/.test(name)) return false; 
-  if (/[;'"`\\]/.test(name)) return false; 
-  return true;
+  return isSafeText(name);
 }
 
 function isValidNit(nit: string): boolean {
   if (!nit || nit.trim() === '') return false;
-  return /^\d{5,15}$/.test(nit);
+  return /^[0-9\-]{4,20}$/.test(nit);
 }
 
 function isValidCode(code: string): boolean {
   if (!code || code.trim() === '') return false;
   return /^[a-zA-Z0-9\-_]+$/.test(code);
+}
+
+function isValidEmail(email: string): boolean {
+  if (!email || email.trim() === '') return true; // Optional
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 @Controller()
@@ -207,12 +218,12 @@ export class AppController {
       throw new HttpException('Debe enviar name y nit', HttpStatus.BAD_REQUEST);
     }
 
-    if (!isValidName(name)) {
-      throw new HttpException('Nombre de empresa inválido. No se permiten solo números ni caracteres peligrosos.', HttpStatus.BAD_REQUEST);
+    if (!isValidName(name) || !isSafeText(status)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
     }
 
     if (!isValidNit(nit)) {
-      throw new HttpException('NIT inválido. Debe contener solo números y tener longitud razonable.', HttpStatus.BAD_REQUEST);
+      throw new HttpException('El NIT/CI debe contener solo números.', HttpStatus.BAD_REQUEST);
     }
 
     const result = await pool.query(
@@ -232,11 +243,11 @@ export class AppController {
     if (!name || !nit) {
       throw new HttpException('Debe enviar name y nit', HttpStatus.BAD_REQUEST);
     }
-    if (!isValidName(name)) {
-      throw new HttpException('Nombre de empresa inválido.', HttpStatus.BAD_REQUEST);
+    if (!isValidName(name) || !isSafeText(status)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
     }
     if (!isValidNit(nit)) {
-      throw new HttpException('NIT inválido.', HttpStatus.BAD_REQUEST);
+      throw new HttpException('El NIT/CI debe contener solo números.', HttpStatus.BAD_REQUEST);
     }
 
     const result = await pool.query(
@@ -254,13 +265,18 @@ export class AppController {
   @Delete('api/companies/:id')
   async deleteCompany(@Param('id') id: string) {
     try {
+      const branches = await pool.query('SELECT id FROM branches WHERE company_id = $1 LIMIT 1', [id]);
+      if (branches.rowCount > 0) {
+        throw new HttpException('No se puede eliminar esta empresa porque tiene sucursales, inventario, ventas o movimientos registrados. Puede desactivarla para conservar el historial.', HttpStatus.BAD_REQUEST);
+      }
+
       const result = await pool.query('DELETE FROM companies WHERE id = $1 RETURNING *', [id]);
       if (result.rowCount === 0) {
         throw new HttpException('Empresa no encontrada', HttpStatus.NOT_FOUND);
       }
       return { message: 'Empresa eliminada' };
     } catch (error: any) {
-      throw new HttpException('No se puede eliminar la empresa porque tiene sucursales asignadas.', HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message || 'Error al eliminar la empresa.', error.status || HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -288,12 +304,12 @@ export class AppController {
       throw new HttpException('No se pudo guardar la sucursal. Seleccione una empresa y complete nombre, ciudad y dirección.', HttpStatus.BAD_REQUEST);
     }
 
-    if (!isValidName(name)) {
-      throw new HttpException('Nombre de sucursal inválido.', HttpStatus.BAD_REQUEST);
+    if (!isValidName(name) || !isSafeText(address) || !isSafeText(status)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
     }
 
     if (!isValidName(city)) {
-      throw new HttpException('Nombre de ciudad inválido.', HttpStatus.BAD_REQUEST);
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos en la ciudad.', HttpStatus.BAD_REQUEST);
     }
 
     const companyExists = await pool.query('SELECT id FROM companies WHERE id = $1', [company_id]);
@@ -321,6 +337,10 @@ export class AppController {
       throw new HttpException('Debe enviar name, city y address', HttpStatus.BAD_REQUEST);
     }
 
+    if (!isValidName(name) || !isValidName(city) || !isSafeText(address) || !isSafeText(status)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
+    }
+
     const result = await pool.query(
       'UPDATE branches SET name = $1, city = $2, address = $3, status = $4, company_id = $5 WHERE id = $6 RETURNING *',
       [name, city, address, status, company_id, id]
@@ -336,13 +356,21 @@ export class AppController {
   @Delete('api/branches/:id')
   async deleteBranch(@Param('id') id: string) {
     try {
+      const stock = await pool.query('SELECT branch_id FROM inventory_stock WHERE branch_id = $1 LIMIT 1', [id]);
+      const movements = await pool.query('SELECT branch_id FROM inventory_movements WHERE branch_id = $1 LIMIT 1', [id]);
+      const sales = await pool.query('SELECT id FROM sales WHERE branch_id = $1 LIMIT 1', [id]);
+      
+      if (stock.rowCount > 0 || movements.rowCount > 0 || sales.rowCount > 0) {
+        throw new HttpException('No se puede eliminar esta sucursal porque tiene inventario, ventas o movimientos registrados. Puede desactivarla para conservar el historial.', HttpStatus.BAD_REQUEST);
+      }
+
       const result = await pool.query('DELETE FROM branches WHERE id = $1 RETURNING *', [id]);
       if (result.rowCount === 0) {
         throw new HttpException('Sucursal no encontrada', HttpStatus.NOT_FOUND);
       }
       return { message: 'Sucursal eliminada' };
     } catch (error: any) {
-      throw new HttpException('Error al eliminar la sucursal.', HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message || 'Error al eliminar la sucursal.', error.status || HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -395,11 +423,11 @@ export class AppController {
     }
 
     if (!isValidCode(code)) {
-      throw new HttpException('Código inválido. Use caracteres alfanuméricos.', HttpStatus.BAD_REQUEST);
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos en el código.', HttpStatus.BAD_REQUEST);
     }
 
-    if (!isValidName(name)) {
-      throw new HttpException('Nombre de producto inválido.', HttpStatus.BAD_REQUEST);
+    if (!isValidName(name) || !isSafeText(category) || !isSafeText(brand) || !isSafeText(unit)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
     }
 
     if (!isPositiveNumber(sale_price)) {
@@ -437,11 +465,11 @@ export class AppController {
     }
 
     if (!isValidCode(code)) {
-      throw new HttpException('Código inválido.', HttpStatus.BAD_REQUEST);
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos en el código.', HttpStatus.BAD_REQUEST);
     }
 
-    if (!isValidName(name)) {
-      throw new HttpException('Nombre inválido.', HttpStatus.BAD_REQUEST);
+    if (!isValidName(name) || !isSafeText(category) || !isSafeText(brand) || !isSafeText(unit)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
     }
 
     if (!isPositiveNumber(sale_price)) {
@@ -577,6 +605,8 @@ export class AppController {
     const product_id = cleanText(body.product_id);
     const initial_stock = Number(body.initial_stock);
     const target_min_stock = Number(body.target_min_stock);
+    const max_stock = Number(body.max_stock);
+    const MAX_STOCK_PER_LOT = 10000;
 
     if (!branch_id || !product_id) {
       throw new HttpException('Debe enviar branch_id y product_id', HttpStatus.BAD_REQUEST);
@@ -587,6 +617,19 @@ export class AppController {
         'El stock inicial y el stock mínimo deben ser números enteros no negativos',
         HttpStatus.BAD_REQUEST,
       );
+    }
+
+    if (!Number.isNaN(max_stock) && max_stock > 0 && Number.isInteger(max_stock)) {
+      if (initial_stock > max_stock) {
+        throw new HttpException('La cantidad inicial no puede superar el stock máximo.', HttpStatus.BAD_REQUEST);
+      }
+      if (target_min_stock > max_stock) {
+        throw new HttpException('El stock mínimo no puede ser mayor al stock máximo.', HttpStatus.BAD_REQUEST);
+      }
+    }
+
+    if (initial_stock > MAX_STOCK_PER_LOT) {
+      throw new HttpException('No se puede registrar el lote. La cantidad supera el límite permitido de inventario.', HttpStatus.BAD_REQUEST);
     }
 
     const result = await pool.query(
@@ -622,13 +665,18 @@ export class AppController {
     const product_id = cleanText(body.product_id);
     const quantity = Number(body.quantity);
     const reason = cleanText(body.reason) || 'Baja por pérdida o vencimiento';
+    const notes = cleanText(body.notes) || '';
 
     if (!branch_id || !product_id) {
       throw new HttpException('Debe enviar branch_id y product_id', HttpStatus.BAD_REQUEST);
     }
 
+    if (!isSafeText(reason) || !isSafeText(notes)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
+    }
+
     if (!isPositiveInteger(quantity)) {
-      throw new HttpException('La cantidad de baja debe ser un número entero mayor a 0', HttpStatus.BAD_REQUEST);
+      throw new HttpException('La cantidad debe ser un número entero mayor a cero.', HttpStatus.BAD_REQUEST);
     }
 
     const current = await pool.query(
@@ -645,9 +693,10 @@ export class AppController {
     }
 
     const currentQty = Number(current.rows[0].quantity) || 0;
+    const minStock = Number(current.rows[0].min_stock) || 0;
 
     if (quantity > currentQty) {
-      throw new HttpException(`Stock insuficiente. Disponible: ${currentQty}`, HttpStatus.BAD_REQUEST);
+      throw new HttpException(`No se puede registrar la baja porque la cantidad supera el stock disponible.`, HttpStatus.BAD_REQUEST);
     }
 
     const newBalance = currentQty - quantity;
@@ -668,12 +717,40 @@ export class AppController {
         (branch_id, product_id, movement_type, quantity_change, balance_after, notes)
       VALUES ($1, $2, 'OUT', $3, $4, $5)
       `,
-      [branch_id, product_id, quantity * -1, newBalance, reason],
+      [branch_id, product_id, quantity * -1, newBalance, reason + (notes ? ' - ' + notes : '')],
     );
+
+    try {
+      const names = await pool.query(
+        `SELECT p.name as product_name, b.name as branch_name FROM products p CROSS JOIN branches b WHERE p.id = $1 AND b.id = $2`,
+        [product_id, branch_id]
+      );
+      const productName = names.rows[0]?.product_name || 'Producto';
+      const branchName = names.rows[0]?.branch_name || 'Sucursal';
+
+      await pool.query(
+        `INSERT INTO notifications (event_type, content, status) VALUES ($1, $2, 'PENDING')`,
+        ['BAJA_INVENTARIO', `Se registró una baja de ${quantity} unidades de ${productName} en ${branchName}. Motivo: ${reason}.`]
+      );
+
+      if (newBalance === 0) {
+        await pool.query(
+          `INSERT INTO notifications (event_type, content, status) VALUES ($1, $2, 'PENDING')`,
+          ['PRODUCTO_AGOTADO', `${productName} en ${branchName} quedó sin stock.`]
+        );
+      } else if (newBalance <= minStock) {
+        await pool.query(
+          `INSERT INTO notifications (event_type, content, status) VALUES ($1, $2, 'PENDING')`,
+          ['STOCK_BAJO', `${productName} en ${branchName} quedó con stock bajo. Stock actual: ${newBalance}.`]
+        );
+      }
+    } catch (e) {
+      console.error('[Notification Service] Error insertando notificaciones de baja:', e);
+    }
 
     return {
       success: true,
-      message: 'Baja registrada correctamente',
+      message: 'Baja de inventario registrada correctamente.',
       inventory: result.rows[0],
     };
   }
@@ -684,13 +761,18 @@ export class AppController {
     const product_id = cleanText(body.product_id);
     const quantity = Number(body.quantity);
     const reason = cleanText(body.reason) || 'Reabastecimiento';
+    const notes = cleanText(body.notes) || '';
 
     if (!branch_id || !product_id) {
       throw new HttpException('Debe enviar branch_id y product_id', HttpStatus.BAD_REQUEST);
     }
 
+    if (!isSafeText(reason) || !isSafeText(notes)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
+    }
+
     if (!isPositiveInteger(quantity)) {
-      throw new HttpException('La cantidad debe ser un número entero mayor a 0', HttpStatus.BAD_REQUEST);
+      throw new HttpException('La cantidad debe ser un número entero mayor a cero.', HttpStatus.BAD_REQUEST);
     }
 
     const current = await pool.query(
@@ -754,8 +836,20 @@ export class AppController {
       throw new HttpException('No se pudo registrar la venta: el carrito está vacío.', HttpStatus.BAD_REQUEST);
     }
 
-    if (!customer_name || customer_name === '') {
-      throw new HttpException('No se pudo registrar la venta: falta nombre de cliente.', HttpStatus.BAD_REQUEST);
+    if (!customer_name || customer_name === '' || !isSafeText(customer_name)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
+    }
+
+    if (customer_document && customer_document !== '0' && !isValidNit(customer_document)) {
+      throw new HttpException('El NIT/CI debe contener solo números.', HttpStatus.BAD_REQUEST);
+    }
+
+    if (customer_email && !isValidEmail(customer_email)) {
+      throw new HttpException('El correo electrónico ingresado no es válido.', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!isSafeText(payment_method)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
     }
 
     for (const item of items) {
@@ -1061,5 +1155,60 @@ export class AppController {
       message: r.content,
       createdAt: r.created_at
     }));
+  }
+
+  @Get('api/customers/search')
+  async searchCustomers(@Query('document') document: string) {
+    if (!document) return [];
+    const result = await pool.query(
+      'SELECT id, document_number as document, full_name as name, points FROM customers WHERE document_number ILIKE $1 LIMIT 5',
+      [`%${document}%`]
+    );
+    return result.rows;
+  }
+
+  @Get('api/customers/:document')
+  async getCustomer(@Param('document') document: string) {
+    const result = await pool.query(
+      'SELECT id, document_number as document, full_name as name, points FROM customers WHERE document_number = $1 LIMIT 1',
+      [document]
+    );
+    if (result.rowCount === 0) {
+      throw new HttpException('Cliente no encontrado', HttpStatus.NOT_FOUND);
+    }
+    return result.rows[0];
+  }
+
+  @Post('api/customers/upsert')
+  async upsertCustomer(@Body() body: any) {
+    const document = cleanText(body.document);
+    const name = cleanText(body.name);
+
+    if (!document || !name) {
+      throw new HttpException('Documento y nombre requeridos', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!isSafeText(name)) {
+      throw new HttpException('El texto ingresado contiene caracteres no permitidos.', HttpStatus.BAD_REQUEST);
+    }
+
+    if (!isValidNit(document)) {
+      throw new HttpException('El NIT/CI debe contener solo números.', HttpStatus.BAD_REQUEST);
+    }
+
+    const exist = await pool.query('SELECT id, document_number as document, full_name as name, points FROM customers WHERE document_number = $1', [document]);
+    if (exist.rowCount > 0) {
+      const result = await pool.query(
+        'UPDATE customers SET full_name = $1 WHERE document_number = $2 RETURNING id, document_number as document, full_name as name, points',
+        [name, document]
+      );
+      return result.rows[0];
+    } else {
+      const result = await pool.query(
+        'INSERT INTO customers (document_number, full_name, points) VALUES ($1, $2, 0) RETURNING id, document_number as document, full_name as name, points',
+        [document, name]
+      );
+      return result.rows[0];
+    }
   }
 }

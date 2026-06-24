@@ -215,6 +215,35 @@ export default function POSCheckout() {
   const [clientNit, setClientNit] = useState('1234567');
   const [clientEmail, setClientEmail] = useState('');
   
+  const [customerSuggestions, setCustomerSuggestions] = useState<any[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+
+  useEffect(() => {
+    if (clientNit.trim().length > 2) {
+      const timer = setTimeout(() => {
+        fetch(`http://localhost:3000/api/customers/search?document=${clientNit}`)
+          .then(res => res.json())
+          .then(data => {
+            setCustomerSuggestions(data || []);
+            setShowSuggestions(true);
+          })
+          .catch(() => {
+            setCustomerSuggestions([]);
+          });
+      }, 300);
+      return () => clearTimeout(timer);
+    } else {
+      setCustomerSuggestions([]);
+      setShowSuggestions(false);
+    }
+  }, [clientNit]);
+
+  const handleSelectCustomer = (cust: any) => {
+    setClientNit(cust.document);
+    setClientName(cust.name);
+    setShowSuggestions(false);
+  };
+  
   const [branches, setBranches] = useState<any[]>([]);
   const [branch, setBranch] = useState('b0000000-0000-0000-0000-000000000001');
   const [paymentMethod, setPaymentMethod] = useState('Efectivo');
@@ -317,9 +346,12 @@ export default function POSCheckout() {
 
   const handleProcessSale = async () => {
     if (cart.length === 0) return;
-    if (!clientEmail.trim()) {
-      alert('El correo electrónico es obligatorio');
-      return;
+    if (clientEmail.trim()) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(clientEmail.trim())) {
+        alert('El correo electrónico ingresado no es válido.');
+        return;
+      }
     }
     
     try {
@@ -525,14 +557,23 @@ export default function POSCheckout() {
                   <label className="text-xs font-bold text-secondary uppercase block mb-1">Cliente</label>
                   <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
                 </div>
-                <div>
+                <div className="relative">
                   <label className="text-xs font-bold text-secondary uppercase block mb-1">NIT/CI</label>
-                  <input type="text" value={clientNit} onChange={e => setClientNit(e.target.value)} className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
+                  <input type="text" value={clientNit} onChange={e => setClientNit(e.target.value)} onFocus={() => setShowSuggestions(true)} onBlur={() => setTimeout(() => setShowSuggestions(false), 200)} className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
+                  {showSuggestions && customerSuggestions.length > 0 && (
+                    <div className="absolute top-full left-0 right-0 bg-surface border border-outline-variant/30 shadow-lg rounded mt-1 z-10 max-h-40 overflow-y-auto">
+                      {customerSuggestions.map(cust => (
+                        <div key={cust.id} onClick={() => handleSelectCustomer(cust)} className="px-2 py-1 hover:bg-surface-container cursor-pointer text-sm">
+                          <span className="font-bold">{cust.document}</span> - {cust.name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div>
-                <label className="text-xs font-bold text-secondary uppercase block mb-1">Correo Electrónico *</label>
-                <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} required placeholder="cliente@correo.com" className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
+                <label className="text-xs font-bold text-secondary uppercase block mb-1">Correo Electrónico (Opcional)</label>
+                <input type="email" value={clientEmail} onChange={e => setClientEmail(e.target.value)} placeholder="cliente@correo.com" className="w-full bg-surface border border-outline-variant/30 rounded px-2 py-1.5 text-sm" />
               </div>
             </div>
           </div>
