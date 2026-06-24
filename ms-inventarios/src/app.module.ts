@@ -2,6 +2,10 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 
+import { InventoryNotificationService } from './application/services/inventory-notification.service'; // <-- IMPORTANTE
+import { InventoryReportController } from './presentation/controllers/inventory-report.controller';
+import { InventoryReportService } from './application/services/inventory-report.service';
+
 import { InventoryMovement } from './domain/entities/inventory-movement.entity';
 import { getTypeOrmConfig } from './infrastructure/config/typeorm.config';
 import { InventoryStockController } from './presentation/controllers/inventory-stock.controller';
@@ -26,10 +30,12 @@ import { InventoryStock } from './domain/entities/inventory-stock.entity';
       useFactory: getTypeOrmConfig,
       inject: [ConfigService],
     }),
+    
     TypeOrmModule.forFeature([
       InventoryTransfer,
       InventoryStock,
       InventoryMovement,
+     
       InventoryStockRepository,
       InventoryMovementRepository,
       InventoryTransferRepository,
@@ -39,6 +45,7 @@ import { InventoryStock } from './domain/entities/inventory-stock.entity';
     InventoryStockController,
     InventoryMovementController,
     InventoryTransferController,
+    InventoryReportController,
   ],
   providers: [
     InventoryStockService,
@@ -47,6 +54,8 @@ import { InventoryStock } from './domain/entities/inventory-stock.entity';
     InventoryStockRepository,
     InventoryMovementRepository,
     InventoryTransferRepository,
+    InventoryReportService,
+    InventoryNotificationService,
   ],
 })
 export class AppModule {}

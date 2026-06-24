@@ -1,4 +1,6 @@
+
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { EventEmitter } from 'events';
 import { InventoryTransferRepository } from '../../infrastructure/repositories/inventory-transfer.repository';
 // Conectamos el repositorio que maneja las existencias reales en Postgres
 import { InventoryStockRepository } from '../../infrastructure/repositories/inventory-stock.repository';
@@ -6,12 +8,19 @@ import { CreateInventoryTransferDto } from '../dto/create-inventory-transfer.dto
 import { UpdateInventoryTransferDto } from '../dto/update-inventory-transfer.dto';
 import { TransferStatus } from '../../domain/entities/inventory-transfer.entity';
 
+if (!(global as any).sysEventEmitter) {
+  (global as any).sysEventEmitter = new EventEmitter();
+}
+
+const sysEventEmitter = new EventEmitter();
+
 @Injectable()
 export class InventoryTransferService {
   constructor(
     private readonly repository: InventoryTransferRepository,
     // NUEVA INYECCIÓN: El puente directo hacia la tabla de stock físico
     private readonly inventoryStockRepository: InventoryStockRepository,
+    
   ) {}
 
   async create(createDto: CreateInventoryTransferDto): Promise<any> {
@@ -25,8 +34,13 @@ export class InventoryTransferService {
     // 1. Guardamos el registro maestro en la base de datos PostgreSQL
     const nuevaTransferencia = await this.repository.create(createDto as any);
 
-    // 2. Simulación oficial de RabbitMQ mediante logs de auditoría asíncronos
-    console.log(`[RabbitMQ Event] Evento 'inventory.transfer.created' emitido para la transferencia ID: ${nuevaTransferencia.id}`);
+    // DISPARADOR NATIVO ASÍNCRONO
+    sysEventEmitter.emit('inventory.transfer.created', {
+      transfer_id: nuevaTransferencia.id,
+      source_branch_id: transferData.source_branch_id,
+      destination_branch_id: transferData.destination_branch_id,
+      timestamp: new Date()
+    });
 
     return nuevaTransferencia;
   }
@@ -124,10 +138,11 @@ export class InventoryTransferService {
           });
         }
       }
-
-      console.log(`[RabbitMQ Event] Evento 'inventory.transfer.completed' emitido para la transferencia ID: ${id}`);
+      // DISPARADOR NATIVO ASÍNCRONO
+      sysEventEmitter.emit('inventory.transfer.completed', {
+        transfer_id: id
+      });
     }
-    
     return await this.repository.update(id, updateData);
   }
 }
